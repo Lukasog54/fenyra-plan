@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Fenyra Plan",
+    "slug": "fenyra-core",
+    "scheme": "fenyra",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "de.fenyra.plan",
+      "adaptiveIcon": {
+        "backgroundColor": "#070B14",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c8bb6564-aa0f-447e-929f-3d6d2a63a1f9"
+      }
+    },
+    "owner": "fenrinoj"
+  }
+}

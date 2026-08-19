@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<vp>
+  <kopf>
+    <datei>VplanKl20260819.xml</datei>
+    <titel>Mittwoch, 19. August 2026</titel>
+    <schulname>Testschule</schulname>
+    <datum>19.08.2026, 07:30</datum>
+    <kopfinfo>
+      <aenderungl>Weber, Neumann</aenderungl>
+      <aenderungk>10a</aenderungk>
+    </kopfinfo>
+  </kopf>
+  <haupt>
+    <aktion>
+      <klasse>10a</klasse>
+      <stunde>1</stunde>
+      <fach>Mathematik</fach>
+      <lehrer>Mueller</lehrer>
+      <raum>204</raum>
+      <info>Klassenleiterstunde entfällt teilweise</info>
+    </aktion>
+    <aktion>
+      <klasse>10a</klasse>
+      <stunde>7</stunde>
+      <fach>Informatik</fach>
+      <lehrer>Winter</lehrer>
+      <raum>EDV 1</raum>
+      <info>Zusatzstunde, verlegt von Donnerstag</info>
+    </aktion>
+  </haupt>
+</vp>

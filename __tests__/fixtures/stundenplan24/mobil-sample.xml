@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VpMobil>
+  <Kopf>
+    <planart>K</planart>
+    <zeitstempel>19.08.2026, 08:00</zeitstempel>
+    <DatumPlan>Mittwoch, 19. August 2026</DatumPlan>
+    <datei>PlanKl20260819.xml</datei>
+  </Kopf>
+  <Klassen>
+    <Kl>
+      <Kurz>10a</Kurz>
+      <Unterricht>
+        <Ue><UeNr UeLe="Mueller" UeFa="Mathematik">1</UeNr></Ue>
+        <Ue><UeNr UeLe="Krause" UeFa="Sport">2</UeNr></Ue>
+        <Ue><UeNr UeLe="Schmidt" UeFa="Englisch">3</UeNr></Ue>
+        <Ue><UeNr UeLe="Meyer" UeFa="Deutsch">4</UeNr></Ue>
+        <Ue><UeNr UeLe="Vogel" UeFa="Musik">5</UeNr></Ue>
+        <Ue><UeNr UeLe="Fischer" UeFa="Erdkunde">6</UeNr></Ue>
+      </Unterricht>
+      <Pl>
+        <Std>
+          <St>1</St><Beginn>07:45</Beginn><Ende>08:30</Ende>
+          <Fa>Mathematik</Fa><Le>Mueller</Le><Ra>204</Ra><Nr>1</Nr><If></If>
+        </Std>
+        <Std>
+          <St>2</St><Beginn>08:35</Beginn><Ende>09:20</Ende>
+          <Fa>Sport</Fa><Le>Krause</Le><Ra>Turnhalle 1</Ra><Nr>2</Nr><If>fällt aus, Lehrer erkrankt</If>
+        </Std>
+        <Std>
+          <St>3</St><Beginn>09:40</Beginn><Ende>10:25</Ende>
+          <Fa>Englisch</Fa><Le LeAe="LeGeaendert">Weber</Le><Ra>110</Ra><Nr>3</Nr><If>für Englisch Schmidt</If>
+        </Std>
+        <Std>
+          <St>4</St><Beginn>10:30</Beginn><Ende>11:15</Ende>
+          <Fa>Deutsch</Fa><Le>Meyer</Le><Ra RaAe="RaGeaendert">108</Ra><Nr>4</Nr><If></If>
+        </Std>
+        <Std>
+          <St>5</St><Beginn>11:35</Beginn><Ende>12:20</Ende>
+          <Fa FaAe="FaGeaendert">Kunst</Fa><Le>Vogel</Le><Ra>010</Ra><Nr>5</Nr><If>Vertretungsstunde</If>
+        </Std>
+        <Std>
+          <St>6</St><Beginn>12:25</Beginn><Ende>13:10</Ende>
+          <Fa FaAe="FaGeaendert">Physik</Fa><Le LeAe="LeGeaendert">Neumann</Le><Ra>108</Ra><Nr>6</Nr><If>Vertretung wegen Fortbildung</If>
+        </Std>
+      </Pl>
+    </Kl>
+  </Klassen>
+</VpMobil>
