@@ -1,6 +1,7 @@
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSync, useSyncMeta } from "../../query/hooks/useSync";
+import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { useTheme } from "../../theme/ThemeProvider";
 import { spacing, typography } from "../../theme/tokens";
 
@@ -13,16 +14,23 @@ export function SyncStatusBar() {
   const { palette } = useTheme();
   const { data: meta } = useSyncMeta();
   const syncMutation = useSync();
+  const isOnline = useNetworkStatus();
 
-  const isError = meta?.lastSyncStatus === "error";
+  const isSyncError = meta?.lastSyncStatus === "error";
   const isSyncing = syncMutation.isPending;
 
-  const statusColor = isSyncing ? palette.accent : isError ? palette.danger : palette.textSecondary;
+  // Real connectivity (isOnline) and a failed sync while online are distinct states -
+  // conflating them previously mislabeled real sync errors (e.g. wrong credentials) as "Offline".
+  const isOffline = !isOnline;
+
+  const statusColor = isSyncing ? palette.accent : isOffline || isSyncError ? palette.danger : palette.textSecondary;
   const statusText = isSyncing
     ? "Synchronisierung..."
-    : isError
+    : isOffline
       ? "Offline · letzte Daten werden angezeigt"
-      : `Aktualisiert ${formatTime(meta?.lastSyncedAt)}`;
+      : isSyncError
+        ? "Sync fehlgeschlagen · letzte Daten werden angezeigt"
+        : `Aktualisiert ${formatTime(meta?.lastSyncedAt)}`;
 
   return (
     <Pressable
@@ -36,7 +44,7 @@ export function SyncStatusBar() {
         <ActivityIndicator size="small" color={palette.accent} />
       ) : (
         <Ionicons
-          name={isError ? "cloud-offline-outline" : "checkmark-circle"}
+          name={isOffline ? "cloud-offline-outline" : isSyncError ? "alert-circle" : "checkmark-circle"}
           size={14}
           color={statusColor}
         />
