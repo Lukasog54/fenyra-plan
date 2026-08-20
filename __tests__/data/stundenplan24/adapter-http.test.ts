@@ -99,4 +99,37 @@ describe("Stundenplan24Adapter.fetchLessons", () => {
     expect(requestedUrls).toContain("https://www.stundenplan24.de/12345678/mobil/mobdaten/PlanKl20260819.xml");
     expect(requestedUrls).toContain("https://www.stundenplan24.de/12345678/vplan/vdaten/VplanKl20260819.xml");
   });
+
+  // Verified against the real source (curl, no fabricated behavior): an unpublished day
+  // (weekend/holiday) and a wrong Schulnummer/expired auth both come back as the identical
+  // plain HTTP 404, so this can only be told apart at the whole-range level, not per day.
+  it("throws when every day in the range fails, instead of silently succeeding with zero lessons (e.g. wrong Schulnummer)", async () => {
+    mockFetchOnce(404, "<html>Stundenplan24 - Seite nicht gefunden</html>");
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    await expect(adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" })).rejects.toThrow(
+      /kein Stundenplan abgerufen werden/
+    );
+  });
+
+  it("does not throw when only some days in the range have no published plan (normal weekend/holiday gaps)", async () => {
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("PlanKl20260819")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () =>
+            '<VpMobil><Kopf><datei>PlanKl20260819.xml</datei></Kopf><Klassen><Kl><Kurz>10a</Kurz><Pl><Std><St>1</St></Std></Pl></Kl></Klassen></VpMobil>',
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, text: async () => "" });
+    });
+    (global as any).fetch = mockFetch;
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const result = await adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-20" });
+
+    expect(result.lessons.length).toBeGreaterThan(0);
+    expect(result.syncMeta.lastSyncStatus).toBe("success");
+  });
 });

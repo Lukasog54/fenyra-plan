@@ -131,15 +131,30 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     const headers = await this.authHeader();
     const lessons: Lesson[] = [];
     const rawPayloads: Array<{ kind: string; payload: string }> = [];
+    let anyDaySucceeded = false;
 
     let cursor = params.from;
     while (cursor <= params.to) {
       const day = await this.fetchDayLessons(cursor, params.className, headers);
       if (day) {
+        anyDaySucceeded = true;
         lessons.push(...day.lessons);
         rawPayloads.push(...day.rawPayloads);
       }
       cursor = addDays(cursor, 1);
+    }
+
+    // Verified against the real source: an unpublished day (weekend/holiday) and a wrong
+    // Schulnummer/401 both come back as the exact same HTTP 404, so a single day can't tell
+    // them apart - fetchDayLessons() correctly skips either one quietly. But every day in the
+    // whole requested range failing is not a normal holiday (the default sync window is ~4
+    // weeks), so surface it as a real error instead of a silent empty "success" - otherwise
+    // SyncService would happily wipe already-cached lessons over what's actually a wrong
+    // Schulnummer, revoked credentials, or an outage.
+    if (!anyDaySucceeded) {
+      throw new Error(
+        "Für den gesamten abgefragten Zeitraum konnte kein Stundenplan abgerufen werden. Bitte Schulnummer, Zugangsdaten und Internetverbindung prüfen."
+      );
     }
 
     return {

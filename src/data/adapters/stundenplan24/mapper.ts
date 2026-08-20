@@ -26,10 +26,11 @@ function periodOf(std: RawStd): number {
 }
 
 /**
- * A cancelled lesson has no confirmed marker in the real feed (no school in
- * the public example data has one on the day this was checked, see
- * docs/stundenplan24-investigation.md) - this is a best-effort heuristic on
- * the free-text `<If>` note, not a verified convention.
+ * `Fa="---"` is the confirmed cancellation marker (verified against a real
+ * school's live feed, not just the public demo - see
+ * docs/stundenplan24-investigation.md). A genuinely empty/missing subject is
+ * treated the same way; the free-text `<If>` note match is a fallback for
+ * schools that might phrase a cancellation differently, still unverified.
  */
 function looksCancelled(note: string | undefined, subject: string | undefined): boolean {
   if (subject === undefined || subject === "---" || subject === "") return true;

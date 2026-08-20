@@ -108,6 +108,25 @@ Struktur:
 Schulname:         <schulname> im <kopf> vorhanden → „Schulinformationen" sind über diesen Feed verfügbar
 ```
 
+## Login-/Session-Verfahren (bestätigt, 2026-08-20 gegen die öffentliche Beispielschule erneut geprüft)
+
+- **Kein Session-/Login-Endpoint.** Es gibt keinen separaten Login- oder Logout-Aufruf und keine Cookies -
+  jede einzelne Anfrage an `mobil`/`vplan` trägt ihren eigenen `Authorization: Basic`-Header (Schulnummer ist
+  Teil des URL-Pfads, nicht der Auth). Bestätigt: keine `Set-Cookie`-Header in echten Responses.
+- **Keine Session-Erneuerung nötig oder möglich** - da es keine Session gibt, kann sie auch nicht ablaufen.
+  Jeder Request ist unabhängig gültig oder ungültig. „Logout" in Fenyra bedeutet folgerichtig nur: das lokal
+  gespeicherte Passwort aus dem Secure Store löschen (`deletePassword()`, verkabelt über den „Entfernen"-Link
+  in Einstellungen → Datenquelle) - es gibt serverseitig nichts zu invalidieren.
+- **Falsche Schulnummer und „kein Plan für diesen Tag" sind auf HTTP-Ebene nicht unterscheidbar** - beides
+  liefert denselben `404` mit derselben generischen „Seite nicht gefunden"-Fehlerseite (am 2026-08-20 erneut per
+  curl gegen die echte Quelle bestätigt, sowohl für eine nicht existierende Schulnummer als auch für ein weit in
+  der Zukunft liegendes Datum). Das schränkt ein, wie zuverlässig ein einzelner Tages-Request Fehler von
+  Normalzustand unterscheiden kann - siehe Fix unten.
+- **Neu entdeckt, bisher nicht dokumentiert**: beide Feeds enthalten im `<Kopf>`/`<kopf>` zusätzlich
+  `<FreieTage>`/`<freietage>` - eine flache Liste von `<ft>YYMMDD</ft>`-Einträgen (schulfreie Tage/Ferien).
+  Fenyra parst und nutzt dieses Feld aktuell nicht (kein Modellfeld, keine Anzeige) - über `.passthrough()`
+  bleibt es aber verlustfrei in `rawData` erhalten, geht also nicht verloren, wird nur nicht ausgewertet.
+
 ## Was weiterhin unverifiziert ist
 
 - **`Klausur`/`fussinfo`** im Vertretungsplan-Feed: nur aus dem Client-JavaScript abgeleitet, an keiner der
@@ -129,6 +148,12 @@ verifizierte Struktur, live getestet gegen eine echte Schule:
 - `Stundenplan24Adapter.fetchLessons()` ruft `mobil` und `vplan` pro Tag ab und führt sie zusammen.
 - `baseUrl` ist die Portal-Wurzel (z. B. `https://www.stundenplan24.de`); Fenyra hängt `/<schulnummer>/mobil/...`
   bzw. `/<schulnummer>/vplan/...` selbst an.
+- **Fix 2026-08-20**: `fetchLessons()` wertet jetzt aus, ob *mindestens ein* Tag im angefragten Zeitraum
+  erfolgreich abgerufen wurde. Vorher wurde ein kompletter Fehlschlag über den ganzen Zeitraum (z. B. falsche
+  Schulnummer, entzogene Zugangsdaten, Ausfall der Quelle) identisch zu „einfach ein paar Ferientage" behandelt
+  - beides ergab eine „erfolgreiche" Synchronisation mit null Stunden, wodurch `SyncService` sogar bereits
+  gecachte, gültige Stunden überschrieben hätte. Schlägt jetzt jeder Tag im Zeitraum fehl, wirft der Adapter
+  einen echten Fehler statt eines stillen Leer-Erfolgs.
 
 Getestet: 36 automatisierte Tests (Fixtures unter `__tests__/fixtures/stundenplan24/`) **plus** ein einmaliger,
 nicht committeter Live-Abgleich gegen eine echte, reale Schule (170 echte Unterrichtsstunden erfolgreich
