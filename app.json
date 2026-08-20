@@ -28,7 +28,16 @@
       "expo-router",
       "expo-sqlite",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#070B14"
+        }
+      ]
     ],
     "extra": {
       "router": {},

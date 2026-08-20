@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, AppState, AppStateStatus } from "react-native";
+import { View, Image, Text, ActivityIndicator, AppState, AppStateStatus, StyleSheet } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "../src/query/queryClient";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
 import { getDb } from "../src/data/database/db";
@@ -17,6 +18,13 @@ import { queryKeys } from "../src/query/keys";
 import { useNetworkStatus } from "../src/hooks/useNetworkStatus";
 import { LoginScreen } from "../src/components/onboarding/LoginScreen";
 import { ClassSelectionScreen } from "../src/components/onboarding/ClassSelectionScreen";
+import { spacing, typography } from "../src/theme/tokens";
+
+// Keeps the native splash on screen until dbReady below explicitly hides it, so there's no gap
+// between the native splash disappearing and the app having anything ready to show.
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Already hidden/unsupported on this platform - nothing to do.
+});
 
 function RootNavigation() {
   const { palette, isDark } = useTheme();
@@ -32,6 +40,10 @@ function RootNavigation() {
   useEffect(() => {
     getDb().then(() => setDbReady(true));
   }, []);
+
+  useEffect(() => {
+    if (dbReady) SplashScreen.hideAsync().catch(() => {});
+  }, [dbReady]);
 
   const runSync = () => {
     if (!useNetworkStatus.getIsOnline()) return;
@@ -91,8 +103,11 @@ function RootNavigation() {
 
   if (!dbReady) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: palette.background }}>
-        <ActivityIndicator color={palette.accent} />
+      <View style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
+        <Image source={require("../assets/android-icon-foreground.png")} style={styles.loadingLogo} resizeMode="contain" />
+        <Text style={[styles.loadingAppName, { color: palette.accent }]}>FENYRA</Text>
+        <Text style={[styles.loadingAppSub, { color: palette.textSecondary }]}>Plan</Text>
+        <ActivityIndicator color={palette.accent} style={styles.loadingSpinner} />
       </View>
     );
   }
@@ -124,6 +139,33 @@ function RootNavigation() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingLogo: {
+    width: 72,
+    height: 72,
+    marginBottom: spacing.sm,
+  },
+  loadingAppName: {
+    fontSize: typography.heading.fontSize,
+    fontWeight: "800",
+    letterSpacing: 3,
+  },
+  loadingAppSub: {
+    fontSize: typography.subtitle.fontSize,
+    fontWeight: "500",
+    letterSpacing: 2,
+    marginTop: 2,
+  },
+  loadingSpinner: {
+    marginTop: spacing.xl,
+  },
+});
 
 export default function RootLayout() {
   return (
