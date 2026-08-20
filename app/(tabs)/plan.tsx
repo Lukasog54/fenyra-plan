@@ -2,6 +2,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useUiStore } from "../../src/stores/useUiStore";
 import { useLessonsForDate } from "../../src/query/hooks/useLessonsForDate";
+import { useSyncMeta } from "../../src/query/hooks/useSync";
 import { DayTimeline } from "../../src/components/plan/DayTimeline";
 import { SyncStatusBar } from "../../src/components/common/SyncStatusBar";
 import { useTheme } from "../../src/theme/ThemeProvider";
@@ -18,6 +19,7 @@ export default function PlanScreen() {
   const selectedDate = useUiStore((s) => s.selectedDate);
   const setSelectedDate = useUiStore((s) => s.setSelectedDate);
   const { data: lessons = [] } = useLessonsForDate(selectedDate);
+  const { data: meta } = useSyncMeta();
 
   const isToday = selectedDate === todayIsoDate();
 
@@ -46,7 +48,7 @@ export default function PlanScreen() {
         </Pressable>
       </View>
 
-      <DayTimeline lessons={lessons} />
+      <DayTimeline lessons={lessons} neverSynced={!meta?.lastSyncedAt} />
     </ScrollView>
   );
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { View, ScrollView, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSubstitutionLessons } from "../../src/query/hooks/useSubstitutionLessons";
+import { useSyncMeta } from "../../src/query/hooks/useSync";
 import { useSettingsStore } from "../../src/stores/useSettingsStore";
 import { SubstitutionList } from "../../src/components/vertretungen/SubstitutionList";
 import { SyncStatusBar } from "../../src/components/common/SyncStatusBar";
@@ -28,6 +29,7 @@ function formatDateHeading(iso: string): string {
 export default function VertretungenScreen() {
   const { palette } = useTheme();
   const selectedClassName = useSettingsStore((s) => s.selectedClassName);
+  const { data: meta } = useSyncMeta();
 
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>("range");
@@ -128,7 +130,7 @@ export default function VertretungenScreen() {
         })}
       </View>
 
-      <SubstitutionList lessons={filteredLessons} />
+      <SubstitutionList lessons={filteredLessons} neverSynced={!meta?.lastSyncedAt} />
     </ScrollView>
   );
 }

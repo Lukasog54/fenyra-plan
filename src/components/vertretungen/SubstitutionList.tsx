@@ -19,13 +19,15 @@ function formatDateHeading(iso: string): string {
   return d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
 }
 
-export function SubstitutionList({ lessons }: { lessons: Lesson[] }) {
+export function SubstitutionList({ lessons, neverSynced = false }: { lessons: Lesson[]; neverSynced?: boolean }) {
   const { palette } = useTheme();
 
   if (lessons.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={{ color: palette.textSecondary }}>Keine Vertretungen im ausgewählten Zeitraum.</Text>
+        <Text style={{ color: palette.textSecondary }}>
+          {neverSynced ? "Noch keine Daten - bitte synchronisieren." : "Keine Vertretungen im ausgewählten Zeitraum."}
+        </Text>
       </View>
     );
   }

@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
 import { useTodayLessons } from "../../src/query/hooks/useTodayLessons";
-import { useSync } from "../../src/query/hooks/useSync";
+import { useSync, useSyncMeta } from "../../src/query/hooks/useSync";
 import { NextLessonCard } from "../../src/components/heute/NextLessonCard";
 import { TimelineLessonRow } from "../../src/components/plan/TimelineLessonRow";
 import { SyncStatusBar } from "../../src/components/common/SyncStatusBar";
@@ -21,7 +21,9 @@ function formatDateHeading(): string {
 export default function HeuteScreen() {
   const { palette } = useTheme();
   const { data: lessons = [], isLoading, refetch, isRefetching } = useTodayLessons();
+  const { data: meta } = useSyncMeta();
   const syncMutation = useSync();
+  const neverSynced = !meta?.lastSyncedAt;
 
   const now = new Date().toTimeString().slice(0, 5);
   // Some schools' feeds don't provide an end time per lesson - fall back to
@@ -48,7 +50,7 @@ export default function HeuteScreen() {
         </View>
       ) : !isLoading ? (
         <Text style={[styles.emptyText, { color: palette.textSecondary }]}>
-          Für heute sind keine weiteren Stunden geplant.
+          {neverSynced ? "Noch keine Daten - bitte synchronisieren." : "Für heute sind keine weiteren Stunden geplant."}
         </Text>
       ) : null}
 
