@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useSync, useSyncMeta } from "../../query/hooks/useSync";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
@@ -40,16 +41,18 @@ export function SyncStatusBar() {
       accessibilityRole="button"
       accessibilityLabel="Jetzt synchronisieren"
     >
-      {isSyncing ? (
-        <ActivityIndicator size="small" color={palette.accent} />
-      ) : (
-        <Ionicons
-          name={isOffline ? "cloud-offline-outline" : isSyncError ? "alert-circle" : "checkmark-circle"}
-          size={14}
-          color={statusColor}
-        />
-      )}
-      <Text style={[styles.label, { color: statusColor }]}>{statusText}</Text>
+      <Animated.View key={statusText} entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={styles.statusInner}>
+        {isSyncing ? (
+          <ActivityIndicator size="small" color={palette.accent} />
+        ) : (
+          <Ionicons
+            name={isOffline ? "cloud-offline-outline" : isSyncError ? "alert-circle" : "checkmark-circle"}
+            size={14}
+            color={statusColor}
+          />
+        )}
+        <Text style={[styles.label, { color: statusColor }]}>{statusText}</Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -58,10 +61,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
     alignSelf: "flex-start",
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.xs,
+  },
+  statusInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   label: {
     fontSize: typography.caption.fontSize,

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
-import { View, Image, Text, ActivityIndicator, AppState, AppStateStatus, StyleSheet } from "react-native";
+import { Image, Text, ActivityIndicator, AppState, AppStateStatus, StyleSheet } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "../src/query/queryClient";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
@@ -103,12 +104,12 @@ function RootNavigation() {
 
   if (!dbReady) {
     return (
-      <View style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
+      <Animated.View entering={FadeIn.duration(200)} style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
         <Image source={require("../assets/android-icon-foreground.png")} style={styles.loadingLogo} resizeMode="contain" />
         <Text style={[styles.loadingAppName, { color: palette.accent }]}>FENYRA</Text>
         <Text style={[styles.loadingAppSub, { color: palette.textSecondary }]}>Plan</Text>
         <ActivityIndicator color={palette.accent} style={styles.loadingSpinner} />
-      </View>
+      </Animated.View>
     );
   }
 
@@ -116,7 +117,9 @@ function RootNavigation() {
     return (
       <>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <LoginScreen />
+        <Animated.View style={styles.flexFill} entering={FadeIn.duration(250)}>
+          <LoginScreen />
+        </Animated.View>
       </>
     );
   }
@@ -125,7 +128,9 @@ function RootNavigation() {
     return (
       <>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <ClassSelectionScreen />
+        <Animated.View style={styles.flexFill} entering={FadeIn.duration(250)}>
+          <ClassSelectionScreen />
+        </Animated.View>
       </>
     );
   }
@@ -133,14 +138,19 @@ function RootNavigation() {
   return (
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background } }}>
-        <Stack.Screen name="(tabs)" />
-      </Stack>
+      <Animated.View style={styles.flexFill} entering={FadeIn.duration(250)}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background } }}>
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+      </Animated.View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  flexFill: {
+    flex: 1,
+  },
   loadingScreen: {
     flex: 1,
     alignItems: "center",

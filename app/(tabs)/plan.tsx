@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useUiStore } from "../../src/stores/useUiStore";
 import { useLessonsForDate } from "../../src/query/hooks/useLessonsForDate";
@@ -48,7 +49,9 @@ export default function PlanScreen() {
         </Pressable>
       </View>
 
-      <DayTimeline lessons={lessons} neverSynced={!meta?.lastSyncedAt} />
+      <Animated.View key={selectedDate} entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)}>
+        <DayTimeline lessons={lessons} neverSynced={!meta?.lastSyncedAt} />
+      </Animated.View>
     </ScrollView>
   );
 }

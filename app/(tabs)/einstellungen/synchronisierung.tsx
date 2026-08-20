@@ -1,4 +1,5 @@
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { useSync, useSyncMeta } from "../../../src/query/hooks/useSync";
@@ -34,23 +35,23 @@ function ProgressChecklist({ progress }: { progress: SyncPhase | null }) {
   if (!progress) return null;
 
   const currentIndex = PROGRESS_STEPS.findIndex((s) => s.key === progress);
+  // Only render steps reached so far - each one fades in as progress gets to it, instead of
+  // showing all four greyed-out steps upfront.
+  const visibleSteps = PROGRESS_STEPS.slice(0, currentIndex + 1);
 
   return (
     <View style={styles.progressList}>
-      {PROGRESS_STEPS.map((step, index) => {
+      {visibleSteps.map((step, index) => {
         const isDone = index < currentIndex || progress === "done";
-        const isCurrent = index === currentIndex && progress !== "done";
         return (
-          <View key={step.key} style={styles.progressRow}>
+          <Animated.View key={step.key} entering={FadeIn.duration(150)} style={styles.progressRow}>
             {isDone ? (
               <Ionicons name="checkmark-circle" size={16} color={palette.success} />
-            ) : isCurrent ? (
-              <Ionicons name="ellipse-outline" size={16} color={palette.accent} />
             ) : (
-              <Ionicons name="ellipse-outline" size={16} color={palette.muted} />
+              <Ionicons name="ellipse-outline" size={16} color={palette.accent} />
             )}
-            <Text style={[styles.progressLabel, { color: isDone || isCurrent ? palette.text : palette.muted }]}>{step.label}</Text>
-          </View>
+            <Text style={[styles.progressLabel, { color: palette.text }]}>{step.label}</Text>
+          </Animated.View>
         );
       })}
     </View>
