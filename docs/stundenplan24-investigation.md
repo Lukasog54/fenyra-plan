@@ -160,6 +160,28 @@ mobil-Seite, hier aber bisher unbemerkt, weil noch nie ein Tag mit null Vertretu
 Parser getestet wurde). Mit demselben bewährten Muster (`emptyTagToObject`) behoben, plus dasselbe für
 `<kopfinfo/>`. Durch einen echten Parser-Testlauf gefunden, nicht durch Spekulation.
 
+## Stundenplan-Kernfelder vollständig geprüft (2026-08-20)
+
+Auftrag: Datum, Stunde, Beginn, Ende, Fach, Lehrer, Raum, Klasse, Kurs, Gruppe, Status, Bemerkung -
+Datenfluss Quelle → Rohdaten → Parser → Mapper → Datenmodell → Datenbank → Fenyra vollständig prüfen.
+
+**Ergebnis: keine Lücke gefunden, keine Codeänderung nötig.** Alle zwölf Felder sind bereits korrekt
+implementiert. Verifiziert durch: (1) vollständige Tag-/Attribut-Inventur der realen mobil-XML (jeder
+tatsächlich vorkommende Tag/jedes Attribut ist entweder bereits modelliert oder bereits als bewusst
+unverarbeitet dokumentiert - nichts Neues gefunden), (2) ein echter Testlauf des Parsers/Validators/Mappers
+gegen eine reale Woche (Di 18.08.–Di 25.08.2026, 6 veröffentlichte Tage, 2 korrekt übersprungene
+Wochenend-Tage, 1497 Stunden, 24 Klassen) - Tagesplan, Wochenplan, vergangene/aktuelle/zukünftige/fehlende
+Tage, sowie der Sonderfall zeitgleicher Kurs-/Gruppen-Stunden (Klasse „5a", Periode 5: zwei gleichzeitige
+Sportgruppen „SpJ"/„SpM") alle korrekt und ohne Kollision verarbeitet.
+
+**Kurs vs. Gruppe**: an echten Daten bestätigt, dass die Quelle hierfür keinen eigenen zweiten Wert liefert -
+`<Std><Ku2>` und `<Unterricht><Ue><UeNr UeGr="...">` tragen denselben Kurs-/Gruppenkürzel (z. B. „SpJ").
+Fenyras einzelnes `course`-Feld bildet das bereits vollständig ab; ein künstlich getrenntes „Gruppe"-Feld wäre
+erfundene Differenzierung, die die Quelle nicht hergibt.
+
+**Bemerkung**: `<If>` (mobil) bzw. `<info>` (vplan) → `note`. Bereits korrekt, inklusive dem Fall, dass beide
+leer sind (dann `undefined`, nicht erfunden).
+
 ## Was weiterhin unverifiziert ist
 
 - **`Klausur`/`fussinfo`** im Vertretungsplan-Feed: nur aus dem Client-JavaScript abgeleitet, an keiner der
