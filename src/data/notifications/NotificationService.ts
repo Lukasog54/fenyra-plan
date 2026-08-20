@@ -1,23 +1,47 @@
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import type { SubstitutionChangeEvent } from "../models/SubstitutionChangeEvent";
 import type { NotificationCategory } from "./types";
 import { markEventsNotified } from "../database/repositories/changeEventRepository";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+type NotificationsModule = typeof import("expo-notifications");
+
+/**
+ * expo-notifications throws just from being loaded (not even called) when running under Expo Go
+ * on Android - remote/push functionality was removed from Expo Go in SDK 53, and the package
+ * registers a push-token listener as a module-level side effect. A static top-level `import`
+ * would crash the whole app in Expo Go before any of our own code runs, so this module is loaded
+ * lazily via require() inside a try/catch instead - real device/EAS builds load it fine, Expo Go
+ * (or any other environment where it fails to load) falls back to "notifications unavailable"
+ * rather than crashing.
+ */
+let cachedModule: NotificationsModule | null | undefined;
+
+function loadNotifications(): NotificationsModule | null {
+  if (cachedModule !== undefined) return cachedModule;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod: NotificationsModule = require("expo-notifications");
+    mod.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+    cachedModule = mod;
+  } catch {
+    cachedModule = null;
+  }
+  return cachedModule;
+}
 
 const ANDROID_CHANNEL_ID = "fenyra-default";
 
 export async function ensureNotificationChannel(): Promise<void> {
-  if (Platform.OS !== "android") return;
+  const Notifications = loadNotifications();
+  if (!Notifications || Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: "Fenyra Plan",
     importance: Notifications.AndroidImportance.DEFAULT,
@@ -26,6 +50,8 @@ export async function ensureNotificationChannel(): Promise<void> {
 
 /** Triggers the OS permission prompt - call only from an explicit user action (enabling the setting). */
 export async function requestNotificationPermission(): Promise<boolean> {
+  const Notifications = loadNotifications();
+  if (!Notifications) return false;
   const existing = await Notifications.getPermissionsAsync();
   if (existing.status === "granted") return true;
   const result = await Notifications.requestPermissionsAsync();
@@ -94,6 +120,9 @@ export async function notifyNewChangeEvents(events: SubstitutionChangeEvent[]): 
   });
   if (toNotify.length === 0) return;
 
+  const Notifications = loadNotifications();
+  if (!Notifications) return;
+
   try {
     await ensureNotificationChannel();
     for (const event of toNotify) {
@@ -114,6 +143,9 @@ export async function notifyNewChangeEvents(events: SubstitutionChangeEvent[]): 
 export async function notifySyncError(message: string): Promise<void> {
   const settings = useSettingsStore.getState();
   if (!settings.notificationsEnabled || !settings.notificationCategories.syncFehler) return;
+
+  const Notifications = loadNotifications();
+  if (!Notifications) return;
 
   try {
     await ensureNotificationChannel();
