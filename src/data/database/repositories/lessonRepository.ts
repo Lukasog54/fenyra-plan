@@ -65,54 +65,60 @@ export async function getLessonsForRange(sourceId: string, from: string, to: str
   return rows.map(rowToLesson);
 }
 
-/** Replaces every lesson row for the given source/date range with `lessons` in one transaction. */
-export async function replaceLessonsForRange(
-  sourceId: string,
-  from: string,
-  to: string,
-  lessons: Lesson[],
-  syncedAt: string
-): Promise<void> {
+async function insertLesson(db: Awaited<ReturnType<typeof getDb>>, sourceId: string, lesson: Lesson, syncedAt: string): Promise<void> {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO lessons (
+      id, source_id, date, start_time, end_time, period, week_type,
+      subject, teacher, room, class_name, course,
+      original_subject, original_teacher, original_room,
+      status, note, is_exam, exam_info, moved_from, moved_to,
+      last_updated, raw_data, synced_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      lesson.id,
+      sourceId,
+      lesson.date,
+      lesson.startTime,
+      lesson.endTime,
+      lesson.period ?? null,
+      lesson.weekType ?? null,
+      lesson.subject ?? null,
+      lesson.teacher ?? null,
+      lesson.room ?? null,
+      lesson.className ?? null,
+      lesson.course ?? null,
+      lesson.originalSubject ?? null,
+      lesson.originalTeacher ?? null,
+      lesson.originalRoom ?? null,
+      lesson.status,
+      lesson.note ?? null,
+      lesson.isExam ? 1 : 0,
+      lesson.examInfo ?? null,
+      lesson.movedFrom ? JSON.stringify(lesson.movedFrom) : null,
+      lesson.movedTo ? JSON.stringify(lesson.movedTo) : null,
+      lesson.lastUpdated ?? null,
+      lesson.rawData !== undefined ? JSON.stringify(lesson.rawData) : null,
+      syncedAt,
+    ]
+  );
+}
+
+/**
+ * Replaces lesson rows only for the given `dates` (not a from/to range) - so a day that failed to
+ * fetch this sync (and so isn't in `dates`) keeps whatever was already cached for it, instead of
+ * being silently wiped by a blanket range delete. `dates` should be exactly the dates the adapter
+ * actually fetched successfully; `lessons` may span a subset of those dates (e.g. a day with
+ * genuinely zero lessons for the selected class).
+ */
+export async function replaceLessonsForDates(sourceId: string, dates: string[], lessons: Lesson[], syncedAt: string): Promise<void> {
+  if (dates.length === 0) return;
   const db = await getDb();
   await db.withTransactionAsync(async () => {
-    await db.runAsync("DELETE FROM lessons WHERE source_id = ? AND date >= ? AND date <= ?", [sourceId, from, to]);
+    const placeholders = dates.map(() => "?").join(",");
+    await db.runAsync(`DELETE FROM lessons WHERE source_id = ? AND date IN (${placeholders})`, [sourceId, ...dates]);
 
     for (const lesson of lessons) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO lessons (
-          id, source_id, date, start_time, end_time, period, week_type,
-          subject, teacher, room, class_name, course,
-          original_subject, original_teacher, original_room,
-          status, note, is_exam, exam_info, moved_from, moved_to,
-          last_updated, raw_data, synced_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          lesson.id,
-          sourceId,
-          lesson.date,
-          lesson.startTime,
-          lesson.endTime,
-          lesson.period ?? null,
-          lesson.weekType ?? null,
-          lesson.subject ?? null,
-          lesson.teacher ?? null,
-          lesson.room ?? null,
-          lesson.className ?? null,
-          lesson.course ?? null,
-          lesson.originalSubject ?? null,
-          lesson.originalTeacher ?? null,
-          lesson.originalRoom ?? null,
-          lesson.status,
-          lesson.note ?? null,
-          lesson.isExam ? 1 : 0,
-          lesson.examInfo ?? null,
-          lesson.movedFrom ? JSON.stringify(lesson.movedFrom) : null,
-          lesson.movedTo ? JSON.stringify(lesson.movedTo) : null,
-          lesson.lastUpdated ?? null,
-          lesson.rawData !== undefined ? JSON.stringify(lesson.rawData) : null,
-          syncedAt,
-        ]
-      );
+      await insertLesson(db, sourceId, lesson, syncedAt);
     }
   });
 }

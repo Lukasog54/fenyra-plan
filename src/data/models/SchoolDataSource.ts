@@ -33,6 +33,13 @@ export interface FetchLessonsResult {
   syncMeta: SyncMeta;
   /** Raw payload(s) as received from the source, for raw-snapshot persistence. Never shown in the UI. */
   rawPayloads?: Array<{ kind: string; payload: string }>;
+  /**
+   * ISO dates within the requested range that were actually fetched successfully (as opposed to
+   * unpublished/failed days that were silently skipped). Lets the caller replace only these dates
+   * in storage instead of the whole requested range, so a single bad day never wipes already-cached
+   * lessons for the other, still-good days in the same sync.
+   */
+  datesFetched?: string[];
 }
 
 export interface ConnectionTestResult {

@@ -1,7 +1,7 @@
 import type { SchoolDataSource, FetchLessonsParams } from "../models/SchoolDataSource";
 import type { SubstitutionChangeEvent } from "../models/SubstitutionChangeEvent";
 import type { SyncMeta } from "../models/SyncMeta";
-import { getLessonsForRange, replaceLessonsForRange } from "../database/repositories/lessonRepository";
+import { getLessonsForRange, replaceLessonsForDates } from "../database/repositories/lessonRepository";
 import { saveRawSnapshot } from "../database/repositories/snapshotRepository";
 import { getSyncMeta, saveSyncMeta } from "../database/repositories/syncMetaRepository";
 import { saveChangeEvents } from "../database/repositories/changeEventRepository";
@@ -12,7 +12,24 @@ export interface SyncResult {
   syncMeta: SyncMeta;
 }
 
-export async function sync(adapter: SchoolDataSource, range: FetchLessonsParams): Promise<SyncResult> {
+// Keyed by sourceId - a sync already in flight for that source is returned as-is instead of
+// starting a second, overlapping one (the periodic timer, app-resume, and a manual button press
+// can otherwise all fire close together with no coordination between them).
+const inFlightSyncs = new Map<string, Promise<SyncResult>>();
+
+export function sync(adapter: SchoolDataSource, range: FetchLessonsParams): Promise<SyncResult> {
+  const sourceId = adapter.config.id;
+  const existing = inFlightSyncs.get(sourceId);
+  if (existing) return existing;
+
+  const promise = performSync(adapter, range).finally(() => {
+    inFlightSyncs.delete(sourceId);
+  });
+  inFlightSyncs.set(sourceId, promise);
+  return promise;
+}
+
+async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams): Promise<SyncResult> {
   const sourceId = adapter.config.id;
   const now = new Date().toISOString();
   const existingMeta = await getSyncMeta(sourceId);
@@ -28,7 +45,10 @@ export async function sync(adapter: SchoolDataSource, range: FetchLessonsParams)
 
     const events = detectChanges(previous, result.lessons, now);
 
-    await replaceLessonsForRange(sourceId, range.from, range.to, result.lessons, now);
+    // Only the dates actually fetched this time get replaced - a day that failed to fetch (but
+    // wasn't part of a total-range failure, see the adapter's own all-days-failed guard) keeps
+    // whatever was already cached for it instead of being silently deleted.
+    await replaceLessonsForDates(sourceId, result.datesFetched ?? [], result.lessons, now);
     await saveChangeEvents(events);
 
     const syncMeta: SyncMeta = {

@@ -142,6 +142,7 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     const headers = await this.authHeader();
     const lessons: Lesson[] = [];
     const rawPayloads: Array<{ kind: string; payload: string }> = [];
+    const datesFetched: string[] = [];
     let anyDaySucceeded = false;
     let schoolName: string | undefined;
     let sourceGeneratedAt: string | undefined;
@@ -153,6 +154,7 @@ export class Stundenplan24Adapter implements SchoolDataSource {
       const day = await this.fetchDayLessons(cursor, params.className, headers);
       if (day) {
         anyDaySucceeded = true;
+        datesFetched.push(cursor);
         lessons.push(...day.lessons);
         rawPayloads.push(...day.rawPayloads);
 
@@ -190,6 +192,7 @@ export class Stundenplan24Adapter implements SchoolDataSource {
         sourceGeneratedAt,
       },
       rawPayloads,
+      datesFetched,
     };
   }
 
