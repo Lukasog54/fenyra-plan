@@ -5,6 +5,7 @@ import { NextLessonCard } from "../../src/components/heute/NextLessonCard";
 import { TimelineLessonRow } from "../../src/components/plan/TimelineLessonRow";
 import { SyncStatusBar } from "../../src/components/common/SyncStatusBar";
 import { useTheme } from "../../src/theme/ThemeProvider";
+import { groupParallelLessons } from "../../src/utils/lessonGroups";
 import { spacing, typography } from "../../src/theme/tokens";
 
 function greeting(): string {
@@ -29,8 +30,9 @@ export default function HeuteScreen() {
   // Some schools' feeds don't provide an end time per lesson - fall back to
   // the start time so those lessons aren't wrongly filtered out as "already over".
   const upcoming = lessons.filter((l) => (l.endTime || l.startTime) >= now);
-  const nextLesson = upcoming[0];
-  const restOfDay = upcoming.slice(1);
+  const upcomingGroups = groupParallelLessons(upcoming);
+  const nextGroup = upcomingGroups[0];
+  const restOfDayGroups = upcomingGroups.slice(1);
 
   return (
     <ScrollView
@@ -44,9 +46,9 @@ export default function HeuteScreen() {
       <Text style={[styles.greeting, { color: palette.text }]}>{greeting()}</Text>
       <Text style={[styles.date, { color: palette.textSecondary }]}>{formatDateHeading()}</Text>
 
-      {!isLoading && nextLesson ? (
+      {!isLoading && nextGroup ? (
         <View style={styles.cardWrapper}>
-          <NextLessonCard lesson={nextLesson} />
+          <NextLessonCard lessons={nextGroup} />
         </View>
       ) : !isLoading ? (
         <Text style={[styles.emptyText, { color: palette.textSecondary }]}>
@@ -54,11 +56,11 @@ export default function HeuteScreen() {
         </Text>
       ) : null}
 
-      {restOfDay.length > 0 ? (
+      {restOfDayGroups.length > 0 ? (
         <View style={styles.restSection}>
           <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>REST DES TAGES</Text>
-          {restOfDay.map((lesson) => (
-            <TimelineLessonRow key={lesson.id} lesson={lesson} />
+          {restOfDayGroups.map((group) => (
+            <TimelineLessonRow key={group.map((l) => l.id).join("+")} lessons={group} />
           ))}
         </View>
       ) : null}

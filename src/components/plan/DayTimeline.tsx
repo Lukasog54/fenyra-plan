@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from "react-native";
 import type { Lesson } from "../../data/models/Lesson";
 import { TimelineLessonRow } from "./TimelineLessonRow";
 import { useTheme } from "../../theme/ThemeProvider";
+import { groupParallelLessons } from "../../utils/lessonGroups";
 
 export function DayTimeline({ lessons, neverSynced = false }: { lessons: Lesson[]; neverSynced?: boolean }) {
   const { palette } = useTheme();
@@ -16,10 +17,12 @@ export function DayTimeline({ lessons, neverSynced = false }: { lessons: Lesson[
     );
   }
 
+  const groups = groupParallelLessons(lessons);
+
   return (
     <View>
-      {lessons.map((lesson) => (
-        <TimelineLessonRow key={lesson.id} lesson={lesson} />
+      {groups.map((group) => (
+        <TimelineLessonRow key={group.map((l) => l.id).join("+")} lessons={group} />
       ))}
     </View>
   );

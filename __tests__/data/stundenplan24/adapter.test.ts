@@ -55,6 +55,26 @@ describe("lessonsFromMobil", () => {
     expect(lesson.originalSubject).toBe("Erdkunde");
     expect(lesson.originalTeacher).toBe("Fischer");
   });
+
+  // Verified live against a real school: two simultaneous elective-group Std entries for the
+  // same class+period can both lack <Ku2> and any <UeGr> in <Unterricht> (e.g. a Russian-vs-
+  // Biology split, not a course-labelled sports group) - without a fallback disambiguator both
+  // rows produced the identical id and one silently overwrote the other in storage.
+  it("gives two simultaneous same-period Stds distinct ids via Nr when neither has a course/group", () => {
+    const xml =
+      "<VpMobil><Kopf><datei>test.xml</datei></Kopf><Klassen><Kl><Kurz>10b</Kurz><Pl><Std>" +
+      "<St>3</St><Fa>RU</Fa><Le>Rei</Le><Ra>010b</Ra><Nr>454</Nr><If></If>" +
+      "</Std><Std>" +
+      "<St>3</St><Fa>BIO</Fa><Le>Bü</Le><Ra>109a</Ra><Nr>456</Nr><If></If>" +
+      "</Std></Pl></Kl></Klassen></VpMobil>";
+    const doc = validateMobil(parseVpMobilXml(xml));
+    const parallelLessons = lessonsFromMobil(doc, "stundenplan24", "2026-08-20");
+
+    expect(parallelLessons).toHaveLength(2);
+    const ids = parallelLessons.map((l) => l.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(parallelLessons.find((l) => l.subject === "RU")!.id).not.toBe(parallelLessons.find((l) => l.subject === "BIO")!.id);
+  });
 });
 
 describe("applyVplanNotes", () => {

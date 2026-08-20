@@ -46,11 +46,17 @@ function inferStatus(subjectChanged: boolean, teacherChanged: boolean, roomChang
   return "subject-change";
 }
 
-function lessonId(sourceId: string, date: string, className: string, period: number, course: string | undefined): string {
-  // Elective/split-group periods can have multiple simultaneous lessons at
-  // the same class+period (e.g. two "5a" period-3 rows for different
-  // elective groups) - the course/group code disambiguates those.
-  return course ? `${sourceId}_${date}_${className}_${period}_${course}` : `${sourceId}_${date}_${className}_${period}`;
+function lessonId(sourceId: string, date: string, className: string, period: number, course: string | undefined, nr?: string): string {
+  // Elective/split-group periods can have multiple simultaneous lessons at the same
+  // class+period (e.g. two "5a" period-3 rows for different elective groups) - the course/group
+  // code disambiguates those when present. But it isn't always present: confirmed live (real
+  // school, class "10b" period 3) a Russian-vs-Biology elective split with NO <Ku2> and no <UeGr>
+  // on either side - without a fallback, both rows produced the identical id and one silently
+  // overwrote the other in storage (INSERT OR REPLACE on a colliding primary key). <Nr> (the
+  // Unterricht-table reference number) is confirmed to differ between them even then, so it's
+  // used as the fallback disambiguator instead of nothing.
+  const disambiguator = course ?? nr;
+  return disambiguator ? `${sourceId}_${date}_${className}_${period}_${disambiguator}` : `${sourceId}_${date}_${className}_${period}`;
 }
 
 /**
@@ -116,7 +122,7 @@ export function lessonsFromMobil(doc: RawMobilDocument, sourceId: string, date: 
         : inferStatus(subjectChanged, teacherChanged, roomChanged);
 
       lessons.push({
-        id: lessonId(sourceId, date, className, period, course),
+        id: lessonId(sourceId, date, className, period, course, nr),
         date,
         startTime: std.Beginn ?? timeGridByPeriod.get(period) ?? "",
         endTime: std.Ende ?? "",

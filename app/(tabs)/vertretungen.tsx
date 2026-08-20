@@ -44,9 +44,12 @@ export default function VertretungenScreen() {
   }, [dateFilter, customDate]);
 
   const classFilter = showAllClasses ? null : selectedClassName;
-  const { data: lessons = [] } = useSubstitutionLessons(range.from, range.to, classFilter);
+  const { data: groups = [] } = useSubstitutionLessons(range.from, range.to, classFilter);
 
-  const filteredLessons = typeFilters.size === 0 ? lessons : lessons.filter((l) => typeFilters.has(l.status as TypeFilter));
+  // Keep a whole group if ANY lesson in it matches the selected type filter(s) - a parallel
+  // group's unaffected sibling should still show alongside the one that matches, for context.
+  const filteredGroups =
+    typeFilters.size === 0 ? groups : groups.filter((group) => group.some((l) => typeFilters.has(l.status as TypeFilter)));
 
   function toggleTypeFilter(key: TypeFilter) {
     setTypeFilters((prev) => {
@@ -130,7 +133,7 @@ export default function VertretungenScreen() {
         })}
       </View>
 
-      <SubstitutionList lessons={filteredLessons} neverSynced={!meta?.lastSyncedAt} />
+      <SubstitutionList groups={filteredGroups} neverSynced={!meta?.lastSyncedAt} />
     </ScrollView>
   );
 }

@@ -4,14 +4,16 @@ import { SubstitutionListItem } from "./SubstitutionListItem";
 import { useTheme } from "../../theme/ThemeProvider";
 import { spacing, typography } from "../../theme/tokens";
 
-function groupByDate(lessons: Lesson[]): Array<[string, Lesson[]]> {
-  const groups = new Map<string, Lesson[]>();
-  for (const lesson of lessons) {
-    const list = groups.get(lesson.date) ?? [];
-    list.push(lesson);
-    groups.set(lesson.date, list);
+/** Groups already-parallel-grouped lesson groups by date, for the date section headers. */
+function groupByDate(groups: Lesson[][]): Array<[string, Lesson[][]]> {
+  const byDate = new Map<string, Lesson[][]>();
+  for (const group of groups) {
+    const date = group[0].date;
+    const list = byDate.get(date) ?? [];
+    list.push(group);
+    byDate.set(date, list);
   }
-  return [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return [...byDate.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 function formatDateHeading(iso: string): string {
@@ -19,10 +21,13 @@ function formatDateHeading(iso: string): string {
   return d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
 }
 
-export function SubstitutionList({ lessons, neverSynced = false }: { lessons: Lesson[]; neverSynced?: boolean }) {
+/** `groups` are lesson groups (same date+className+period) with at least one real change in
+ * each - see useSubstitutionLessons. A group with more than one lesson means parallel elective
+ * groups at that period, at least one of which is affected. */
+export function SubstitutionList({ groups, neverSynced = false }: { groups: Lesson[][]; neverSynced?: boolean }) {
   const { palette } = useTheme();
 
-  if (lessons.length === 0) {
+  if (groups.length === 0) {
     return (
       <View style={styles.empty}>
         <Text style={{ color: palette.textSecondary }}>
@@ -32,15 +37,15 @@ export function SubstitutionList({ lessons, neverSynced = false }: { lessons: Le
     );
   }
 
-  const groups = groupByDate(lessons);
+  const byDate = groupByDate(groups);
 
   return (
     <View>
-      {groups.map(([date, dateLessons]) => (
+      {byDate.map(([date, dateGroups]) => (
         <View key={date} style={styles.group}>
           <Text style={[styles.heading, { color: palette.textSecondary }]}>{formatDateHeading(date)}</Text>
-          {dateLessons.map((lesson) => (
-            <SubstitutionListItem key={lesson.id} lesson={lesson} />
+          {dateGroups.map((group) => (
+            <SubstitutionListItem key={group.map((l) => l.id).join("+")} lessons={group} />
           ))}
         </View>
       ))}
