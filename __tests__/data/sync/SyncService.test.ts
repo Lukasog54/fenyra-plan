@@ -118,3 +118,31 @@ describe("SyncService.sync partial-day safety", () => {
     );
   });
 });
+
+describe("SyncService.sync progress reporting", () => {
+  it("reports phases in order, ending with done, on a successful sync", async () => {
+    const sourceId = nextSourceId();
+    const adapter = makeAdapter(sourceId, async () => ({
+      lessons: [],
+      syncMeta: { sourceId, lastSyncedAt: null, lastSyncStatus: "success", syncIntervalMinutes: 30 },
+      datesFetched: [],
+    }));
+    const phases: string[] = [];
+
+    await sync(adapter, { from: "2026-08-19", to: "2026-08-19" }, (phase) => phases.push(phase));
+
+    expect(phases).toEqual(["connecting", "fetching", "saving", "done"]);
+  });
+
+  it("does not report done when the sync fails", async () => {
+    const sourceId = nextSourceId();
+    const adapter = makeAdapter(sourceId, async () => {
+      throw new Error("kaputt");
+    });
+    const phases: string[] = [];
+
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" }, (phase) => phases.push(phase))).rejects.toThrow("kaputt");
+
+    expect(phases).toEqual(["connecting", "fetching"]);
+  });
+});

@@ -1,27 +1,92 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { useSync, useSyncMeta } from "../../../src/query/hooks/useSync";
+import type { SyncPhase } from "../../../src/data/sync/SyncService";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
 import { Button } from "../../../src/components/common/Button";
 import { radius, spacing, typography } from "../../../src/theme/tokens";
+import type { Palette } from "../../../src/theme/colors";
 
-const INTERVAL_OPTIONS = [15, 30, 60, 120];
+const INTERVAL_OPTIONS = [5, 10, 15, 30, 60, 180, 360];
+
+function formatInterval(minutes: number): string {
+  if (minutes < 60) return `${minutes} Minuten`;
+  const hours = minutes / 60;
+  return hours === 1 ? "1 Stunde" : `${hours} Stunden`;
+}
 
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) return "Noch nie";
   return new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+const PROGRESS_STEPS: Array<{ key: SyncPhase; label: string }> = [
+  { key: "connecting", label: "Verbindung" },
+  { key: "fetching", label: "Stundenplan & Vertretungen abrufen" },
+  { key: "saving", label: "Speichern" },
+  { key: "done", label: "Fertig" },
+];
+
+function ProgressChecklist({ progress }: { progress: SyncPhase | null }) {
+  const { palette } = useTheme();
+  if (!progress) return null;
+
+  const currentIndex = PROGRESS_STEPS.findIndex((s) => s.key === progress);
+
+  return (
+    <View style={styles.progressList}>
+      {PROGRESS_STEPS.map((step, index) => {
+        const isDone = index < currentIndex || progress === "done";
+        const isCurrent = index === currentIndex && progress !== "done";
+        return (
+          <View key={step.key} style={styles.progressRow}>
+            {isDone ? (
+              <Ionicons name="checkmark-circle" size={16} color={palette.success} />
+            ) : isCurrent ? (
+              <Ionicons name="ellipse-outline" size={16} color={palette.accent} />
+            ) : (
+              <Ionicons name="ellipse-outline" size={16} color={palette.muted} />
+            )}
+            <Text style={[styles.progressLabel, { color: isDone || isCurrent ? palette.text : palette.muted }]}>{step.label}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function ToggleRow({ label, hint, value, onToggle, palette }: { label: string; hint?: string; value: boolean; onToggle: () => void; palette: Palette }) {
+  return (
+    <Pressable onPress={onToggle} style={styles.optionRow}>
+      <View style={{ flex: 1, paddingRight: spacing.md }}>
+        <Text style={[styles.optionLabel, { color: palette.text }]}>{label}</Text>
+        {hint ? <Text style={[styles.toggleHint, { color: palette.textSecondary }]}>{hint}</Text> : null}
+      </View>
+      <View
+        style={[
+          styles.toggleTrack,
+          { backgroundColor: value ? palette.accent : palette.border },
+        ]}
+      >
+        <View style={[styles.toggleThumb, { backgroundColor: palette.background, alignSelf: value ? "flex-end" : "flex-start" }]} />
+      </View>
+    </Pressable>
+  );
+}
+
 export default function SynchronisierungScreen() {
   const { palette } = useTheme();
   const syncIntervalMinutes = useSettingsStore((s) => s.syncIntervalMinutes);
   const setSyncIntervalMinutes = useSettingsStore((s) => s.setSyncIntervalMinutes);
+  const wifiOnlySync = useSettingsStore((s) => s.wifiOnlySync);
+  const setWifiOnlySync = useSettingsStore((s) => s.setWifiOnlySync);
   const { data: meta } = useSyncMeta();
   const syncMutation = useSync();
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.background }]}>
+    <ScrollView style={{ backgroundColor: palette.background }} contentContainerStyle={styles.container}>
       <Card>
         <Text style={[styles.label, { color: palette.textSecondary }]}>Zuletzt synchronisiert</Text>
         <Text style={[styles.value, { color: palette.text }]}>{formatTimestamp(meta?.lastSyncedAt)}</Text>
@@ -29,6 +94,7 @@ export default function SynchronisierungScreen() {
           <Text style={[styles.errorText, { color: palette.danger }]}>{meta.lastError}</Text>
         ) : null}
         <Button label="Jetzt synchronisieren" onPress={() => syncMutation.mutate()} loading={syncMutation.isPending} style={{ marginTop: spacing.md }} />
+        <ProgressChecklist progress={syncMutation.progress} />
       </Card>
 
       <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>SYNCHRONISATIONSINTERVALL</Text>
@@ -37,7 +103,7 @@ export default function SynchronisierungScreen() {
           const isActive = minutes === syncIntervalMinutes;
           return (
             <Pressable key={minutes} onPress={() => setSyncIntervalMinutes(minutes)} style={styles.optionRow}>
-              <Text style={[styles.optionLabel, { color: palette.text }]}>{minutes} Minuten</Text>
+              <Text style={[styles.optionLabel, { color: palette.text }]}>{formatInterval(minutes)}</Text>
               <View
                 style={[
                   styles.radio,
@@ -48,13 +114,23 @@ export default function SynchronisierungScreen() {
           );
         })}
       </Card>
-    </View>
+
+      <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>DATENVERBRAUCH</Text>
+      <Card style={styles.optionsCard}>
+        <ToggleRow
+          label="Nur über WLAN synchronisieren"
+          hint="Betrifft automatische Synchronisierung (Intervall, Start, Wiederherstellung) - der Jetzt-synchronisieren-Button oben funktioniert immer."
+          value={wifiOnlySync}
+          onToggle={() => setWifiOnlySync(!wifiOnlySync)}
+          palette={palette}
+        />
+      </Card>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: spacing.lg,
     gap: spacing.lg,
   },
@@ -92,10 +168,40 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: typography.body.fontSize,
   },
+  toggleHint: {
+    fontSize: typography.caption.fontSize,
+    marginTop: 2,
+    lineHeight: 15,
+  },
   radio: {
     width: 18,
     height: 18,
     borderRadius: radius.pill,
     borderWidth: 2,
+  },
+  toggleTrack: {
+    width: 40,
+    height: 24,
+    borderRadius: radius.pill,
+    padding: 3,
+    justifyContent: "center",
+  },
+  toggleThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.pill,
+  },
+  progressList: {
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  progressLabel: {
+    fontSize: typography.caption.fontSize,
+    fontWeight: "600",
   },
 });

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { sync } from "../../data/sync/SyncService";
+import { sync, type SyncPhase } from "../../data/sync/SyncService";
 import { getSyncMeta } from "../../data/database/repositories/syncMetaRepository";
 import { resolveAdapter } from "../../data/adapters/registry";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -17,16 +18,22 @@ export function useSyncMeta() {
 export function useSync() {
   const queryClient = useQueryClient();
   const schoolConfig = useSettingsStore((s) => s.schoolConfig);
+  const [progress, setProgress] = useState<SyncPhase | null>(null);
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async () => {
+      setProgress(null);
       const adapter = resolveAdapter(schoolConfig);
-      return sync(adapter, defaultSyncRange());
+      return sync(adapter, defaultSyncRange(), setProgress);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lessons"] });
       queryClient.invalidateQueries({ queryKey: ["substitutionLessons"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.syncMeta(STUNDENPLAN24_SOURCE_ID) });
     },
+    // No onSettled reset to null - "done" (or the phase reached before an error) stays visible
+    // until the next sync starts, so the checklist doesn't disappear the instant it finishes.
   });
+
+  return { ...mutation, progress };
 }

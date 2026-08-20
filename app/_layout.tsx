@@ -35,6 +35,7 @@ function RootNavigation() {
 
   const runSync = () => {
     if (!useNetworkStatus.getIsOnline()) return;
+    if (useSettingsStore.getState().wifiOnlySync && !useNetworkStatus.getIsWifi()) return;
     const adapter = resolveAdapter(useSettingsStore.getState().schoolConfig);
     sync(adapter, defaultSyncRange()).then(() => {
       queryClient.invalidateQueries({ queryKey: ["lessons"] });

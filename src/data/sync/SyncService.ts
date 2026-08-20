@@ -12,33 +12,46 @@ export interface SyncResult {
   syncMeta: SyncMeta;
 }
 
+/**
+ * Coarse phases only - the adapter fetches Stundenplan+Vertretungen together per day internally,
+ * so those two can't be reported as separate ticks without changing the SchoolDataSource
+ * interface itself. "connecting" covers reading local sync state before any network call.
+ */
+export type SyncPhase = "connecting" | "fetching" | "saving" | "done";
+export type SyncProgressCallback = (phase: SyncPhase) => void;
+
 // Keyed by sourceId - a sync already in flight for that source is returned as-is instead of
 // starting a second, overlapping one (the periodic timer, app-resume, and a manual button press
-// can otherwise all fire close together with no coordination between them).
+// can otherwise all fire close together with no coordination between them). Only the caller that
+// actually started the in-flight sync gets progress callbacks; a caller that joins an already
+// in-flight sync just awaits the same result without its own progress ticks.
 const inFlightSyncs = new Map<string, Promise<SyncResult>>();
 
-export function sync(adapter: SchoolDataSource, range: FetchLessonsParams): Promise<SyncResult> {
+export function sync(adapter: SchoolDataSource, range: FetchLessonsParams, onProgress?: SyncProgressCallback): Promise<SyncResult> {
   const sourceId = adapter.config.id;
   const existing = inFlightSyncs.get(sourceId);
   if (existing) return existing;
 
-  const promise = performSync(adapter, range).finally(() => {
+  const promise = performSync(adapter, range, onProgress).finally(() => {
     inFlightSyncs.delete(sourceId);
   });
   inFlightSyncs.set(sourceId, promise);
   return promise;
 }
 
-async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams): Promise<SyncResult> {
+async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams, onProgress?: SyncProgressCallback): Promise<SyncResult> {
   const sourceId = adapter.config.id;
   const now = new Date().toISOString();
+  onProgress?.("connecting");
   const existingMeta = await getSyncMeta(sourceId);
   const intervalMinutes = existingMeta?.syncIntervalMinutes ?? 30;
 
   try {
     const previous = await getLessonsForRange(sourceId, range.from, range.to);
+    onProgress?.("fetching");
     const result = await adapter.fetchLessons(range);
 
+    onProgress?.("saving");
     for (const raw of result.rawPayloads ?? []) {
       await saveRawSnapshot(sourceId, raw.kind, raw.payload, now);
     }
@@ -63,6 +76,7 @@ async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams)
       sourceGeneratedAt: result.syncMeta.sourceGeneratedAt ?? existingMeta?.sourceGeneratedAt ?? null,
     };
     await saveSyncMeta(syncMeta);
+    onProgress?.("done");
 
     return { events, syncMeta };
   } catch (error) {
