@@ -47,6 +47,7 @@
     "test": "jest",
     "build:android": "eas build --platform android --profile release --non-interactive",
     "push": "git push && git push --tags",
+    "update-github": "node scripts/update-github.js",
     "release": "node scripts/release.js",
     "inspect-data": "tsx scripts/inspect-source-data.ts"
   },
