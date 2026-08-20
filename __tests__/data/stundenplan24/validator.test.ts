@@ -1,4 +1,5 @@
 import { validateMobil, validateVplan, Stundenplan24ValidationError } from "../../../src/data/adapters/stundenplan24/validator";
+import { parseVplanXml } from "../../../src/data/adapters/stundenplan24/parser";
 
 describe("validateMobil", () => {
   it("throws a Stundenplan24ValidationError with issue details when a required field is missing", () => {
@@ -50,5 +51,16 @@ describe("validateVplan", () => {
   it("accepts a document with no aktion entries (a day with no substitutions)", () => {
     const result = validateVplan({ vp: { kopf: {} } });
     expect(result.vp.haupt).toBeUndefined();
+  });
+
+  // fast-xml-parser turns a genuinely empty <haupt></haupt>/<kopfinfo/> into an empty string,
+  // not an object (same issue as <Pl/>/<Unterricht/> on the mobil side) - a day with zero
+  // Vertretungen produces exactly this, so it has to be parsed through the real parser here,
+  // not a hand-built object, to actually exercise the bug this guards against.
+  it("accepts a real day-with-no-substitutions XML response (empty <haupt> and <kopfinfo> tags)", () => {
+    const xml = "<vp><kopf><schulname>Testschule</schulname><kopfinfo/></kopf><haupt></haupt></vp>";
+    const result = validateVplan(parseVplanXml(xml));
+    expect(result.vp.kopf.schulname).toBe("Testschule");
+    expect(result.vp.haupt?.aktion).toEqual([]);
   });
 });

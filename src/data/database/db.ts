@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import { CREATE_TABLES_SQL, SCHEMA_VERSION } from "./schema";
+import { CREATE_TABLES_SQL, MIGRATE_V1_TO_V2_SQL, SCHEMA_VERSION } from "./schema";
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -7,8 +7,13 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
   const currentVersion = result?.user_version ?? 0;
 
-  if (currentVersion < SCHEMA_VERSION) {
+  if (currentVersion < 1) {
     await db.execAsync(CREATE_TABLES_SQL);
+  }
+  if (currentVersion >= 1 && currentVersion < 2) {
+    await db.execAsync(MIGRATE_V1_TO_V2_SQL);
+  }
+  if (currentVersion < SCHEMA_VERSION) {
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 }

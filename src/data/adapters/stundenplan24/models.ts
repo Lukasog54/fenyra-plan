@@ -109,19 +109,30 @@ export const RawAktionSchema = z
   })
   .passthrough();
 
+/**
+ * Same self-closing-tag issue as emptyTagToObject above, for object schemas with no natural
+ * array field to seed (e.g. `<kopfinfo/>` on a day with nothing to report) - normalizes the
+ * empty string fast-xml-parser produces to `{}` instead, which every field here already
+ * tolerates via `.optional()`.
+ */
+function emptyTagToEmptyObject<T extends z.ZodTypeAny>(schema: T): z.ZodType<z.infer<T>> {
+  return z.preprocess((val) => (typeof val === "string" || val === undefined || val === null ? {} : val), schema);
+}
+
 export const RawVplanKopfSchema = z
   .object({
     datei: z.string().optional(),
     titel: z.string().optional(),
     schulname: z.string().optional(),
     datum: z.string().optional(),
-    kopfinfo: z
-      .object({
-        aenderungl: z.string().optional(),
-        aenderungk: z.string().optional(),
-      })
-      .passthrough()
-      .optional(),
+    kopfinfo: emptyTagToEmptyObject(
+      z
+        .object({
+          aenderungl: z.string().optional(),
+          aenderungk: z.string().optional(),
+        })
+        .passthrough()
+    ).optional(),
   })
   .passthrough();
 
@@ -130,7 +141,10 @@ export const RawVplanDocumentSchema = z
     vp: z
       .object({
         kopf: RawVplanKopfSchema,
-        haupt: z.object({ aktion: z.array(RawAktionSchema).optional() }).passthrough().optional(),
+        // A day with zero Vertretungen has an empty <haupt/> - same self-closing-tag issue as
+        // <Pl/>/<Unterricht/>/<KlStunden/> on the mobil side (see emptyTagToObject above),
+        // confirmed to actually happen via a live parser/validator round-trip test, not assumed.
+        haupt: emptyTagToObject(z.object({ aktion: z.array(RawAktionSchema).optional() }).passthrough(), "aktion").optional(),
       })
       .passthrough(),
   })

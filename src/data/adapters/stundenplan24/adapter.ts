@@ -10,7 +10,7 @@ import { getPassword } from "../../security/secureCredentials";
 import { parseVpMobilXml, parseVplanXml } from "./parser";
 import { validateMobil, validateVplan } from "./validator";
 import { lessonsFromMobil, applyVplanNotes } from "./mapper";
-import { addDays } from "../../../utils/date";
+import { addDays, todayIsoDate } from "../../../utils/date";
 
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -91,15 +91,24 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     date: string,
     className: string | undefined,
     headers: Record<string, string>
-  ): Promise<{ lessons: Lesson[]; rawPayloads: Array<{ kind: string; payload: string }> } | null> {
+  ): Promise<{
+    lessons: Lesson[];
+    rawPayloads: Array<{ kind: string; payload: string }>;
+    /** From the mobil feed's own <Kopf><zeitstempel> - the source's "as of" time for this day's file. */
+    sourceGeneratedAt?: string;
+    /** From the vplan feed's <kopf><schulname> - only present if the vplan fetch for this day succeeded. */
+    schoolName?: string;
+  } | null> {
     const rawPayloads: Array<{ kind: string; payload: string }> = [];
 
     let lessons;
+    let sourceGeneratedAt: string | undefined;
     try {
       const mobilXml = await this.fetchXml(this.mobilUrl(date), headers);
       rawPayloads.push({ kind: "mobil", payload: mobilXml });
       const mobilDoc = validateMobil(parseVpMobilXml(mobilXml));
       lessons = lessonsFromMobil(mobilDoc, this.config.id, date);
+      sourceGeneratedAt = mobilDoc.VpMobil.Kopf.zeitstempel || undefined;
     } catch {
       // No plan published for this date (weekend/holiday/out of range), or the response didn't match
       // the expected shape (e.g. a maintenance page) - skip this one day rather than aborting the
@@ -107,18 +116,20 @@ export class Stundenplan24Adapter implements SchoolDataSource {
       return null;
     }
 
+    let schoolName: string | undefined;
     try {
       const vplanXml = await this.fetchXml(this.vplanUrl(date), headers);
       rawPayloads.push({ kind: "vplan", payload: vplanXml });
       const vplanDoc = validateVplan(parseVplanXml(vplanXml));
       lessons = applyVplanNotes(lessons, vplanDoc, this.config.id, date);
+      schoolName = vplanDoc.vp.kopf.schulname || undefined;
     } catch {
       // Vertretungsplan feed is a separate app from "mobil" and may not be published for every day.
     }
 
     if (className) lessons = lessons.filter((l) => l.className === className);
 
-    return { lessons, rawPayloads };
+    return { lessons, rawPayloads, sourceGeneratedAt, schoolName };
   }
 
   async fetchLessons(params: FetchLessonsParams): Promise<FetchLessonsResult> {
@@ -132,6 +143,10 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     const lessons: Lesson[] = [];
     const rawPayloads: Array<{ kind: string; payload: string }> = [];
     let anyDaySucceeded = false;
+    let schoolName: string | undefined;
+    let sourceGeneratedAt: string | undefined;
+    let sourceMetaIsFromToday = false;
+    const today = todayIsoDate();
 
     let cursor = params.from;
     while (cursor <= params.to) {
@@ -140,6 +155,13 @@ export class Stundenplan24Adapter implements SchoolDataSource {
         anyDaySucceeded = true;
         lessons.push(...day.lessons);
         rawPayloads.push(...day.rawPayloads);
+
+        // Prefer today's file for "how fresh is the plan right now" - fall back to whichever
+        // day's file we got first, so the fields aren't left blank on ranges that skip today.
+        const isToday = cursor === today;
+        if (day.schoolName && (!sourceMetaIsFromToday || isToday)) schoolName = day.schoolName;
+        if (day.sourceGeneratedAt && (!sourceMetaIsFromToday || isToday)) sourceGeneratedAt = day.sourceGeneratedAt;
+        if (isToday) sourceMetaIsFromToday = true;
       }
       cursor = addDays(cursor, 1);
     }
@@ -164,6 +186,8 @@ export class Stundenplan24Adapter implements SchoolDataSource {
         lastSyncedAt: new Date().toISOString(),
         lastSyncStatus: "success",
         syncIntervalMinutes: 30,
+        schoolName,
+        sourceGeneratedAt,
       },
       rawPayloads,
     };

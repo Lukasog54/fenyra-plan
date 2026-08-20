@@ -64,6 +64,42 @@ describe("runDataSourceAudit against a fully-wired data source", () => {
     expect(findCategory(report, "schulinformationen").status).toBe("UNKNOWN");
     expect(findCategory(report, "gruppen").status).toBe("UNKNOWN");
   });
+
+  it("reports schoolName/sourceGeneratedAt as UNAVAILABLE when this fetch's syncMeta doesn't carry them", async () => {
+    const report = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    expect(findCategory(report, "schulname").status).toBe("UNAVAILABLE");
+    expect(findCategory(report, "aktualisierungszeit").status).toBe("UNAVAILABLE");
+  });
+
+  it("reports schoolName/sourceGeneratedAt as AVAILABLE when the source provided them", async () => {
+    const adapterWithSchoolMeta: SchoolDataSource = {
+      ...fullyWiredAdapter,
+      fetchLessons: async () => ({
+        lessons: [makeLesson({})],
+        syncMeta: {
+          sourceId: "test",
+          lastSyncedAt: null,
+          lastSyncStatus: "success",
+          syncIntervalMinutes: 30,
+          schoolName: "Testschule",
+          sourceGeneratedAt: "12.08.2026, 10:04",
+        },
+      }),
+    };
+
+    const report = await runDataSourceAudit(adapterWithSchoolMeta, RANGE);
+    expect(findCategory(report, "schulname").status).toBe("AVAILABLE");
+    expect(findCategory(report, "aktualisierungszeit").status).toBe("AVAILABLE");
+  });
+
+  it("marks fields the source genuinely doesn't provide as UNAVAILABLE with a NOT_AVAILABLE_FROM_SOURCE detail", async () => {
+    const report = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    for (const key of ["adresse", "ort", "kontaktdaten", "ansprechpartner", "logo", "benutzerinformationen"]) {
+      const entry = findCategory(report, key);
+      expect(entry.status).toBe("UNAVAILABLE");
+      expect(entry.detail).toMatch(/NOT_AVAILABLE_FROM_SOURCE/);
+    }
+  });
 });
 
 describe("runDataSourceAudit against the unconfigured stundenplan24 adapter", () => {

@@ -37,6 +37,10 @@ export async function sync(adapter: SchoolDataSource, range: FetchLessonsParams)
       lastSyncStatus: "success",
       lastError: null,
       syncIntervalMinutes: intervalMinutes,
+      // Fall back to the previously stored value so a sync that succeeds but happens not to
+      // touch today's file (edge case) doesn't blank out an already-known school name/timestamp.
+      schoolName: result.syncMeta.schoolName ?? existingMeta?.schoolName ?? null,
+      sourceGeneratedAt: result.syncMeta.sourceGeneratedAt ?? existingMeta?.sourceGeneratedAt ?? null,
     };
     await saveSyncMeta(syncMeta);
 
@@ -48,6 +52,8 @@ export async function sync(adapter: SchoolDataSource, range: FetchLessonsParams)
       lastSyncStatus: "error",
       lastError: error instanceof Error ? error.message : String(error),
       syncIntervalMinutes: intervalMinutes,
+      schoolName: existingMeta?.schoolName ?? null,
+      sourceGeneratedAt: existingMeta?.sourceGeneratedAt ?? null,
     };
     await saveSyncMeta(syncMeta);
     throw error;

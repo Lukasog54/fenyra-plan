@@ -1,5 +1,6 @@
 import type { Lesson } from "../models/Lesson";
 import type { SchoolDataSource } from "../models/SchoolDataSource";
+import type { SyncMeta } from "../models/SyncMeta";
 import { todayIsoDate } from "../../utils/date";
 
 export type DiagnosticStatus =
@@ -55,20 +56,70 @@ const STUNDENPLAN24_PARSED_FIELDS = new Set<keyof Lesson>([
   // movedFrom/movedTo (mapper doesn't populate these yet).
 ]);
 
+interface EvalContext {
+  range: { from: string; to: string };
+  syncMeta: SyncMeta | null;
+}
+
 interface CategoryDef {
   key: string;
   label: string;
-  /** Lesson fields this category depends on; empty = not modeled at all. */
+  /** Lesson fields this category depends on; empty = not modeled at all (unless viaSyncMeta). */
   parsedFields: Array<keyof Lesson>;
+  /** True for categories carried on SyncMeta (document-level, e.g. Schulname) rather than per-Lesson. */
+  viaSyncMeta?: boolean;
   stored: boolean;
   displayed: boolean;
-  presence: (lessons: Lesson[], ctx: { range: { from: string; to: string } }) => boolean;
+  presence: (lessons: Lesson[], ctx: EvalContext) => boolean;
   detail?: string;
 }
 
+/**
+ * Fields confirmed NOT provided anywhere in the authorized access (mobil/vplan feeds, plus the
+ * bare portal page which returns 403) - verified via curl against the real source, not assumed.
+ * See docs/stundenplan24-investigation.md.
+ */
+const NOT_AVAILABLE_FROM_SOURCE: Array<{ key: string; label: string; detail: string }> = [
+  { key: "adresse", label: "Adresse", detail: "NOT_AVAILABLE_FROM_SOURCE - kein Adressfeld in mobil- oder Vertretungsplan-Feed; die bloße Portal-Seite zur Schulnummer liefert HTTP 403." },
+  { key: "ort", label: "Ort", detail: "NOT_AVAILABLE_FROM_SOURCE - wie Adresse." },
+  { key: "kontaktdaten", label: "Kontaktdaten", detail: "NOT_AVAILABLE_FROM_SOURCE - keine Telefonnummer/E-Mail in einem der beiden Feeds gefunden." },
+  { key: "ansprechpartner", label: "Ansprechpartner", detail: "NOT_AVAILABLE_FROM_SOURCE - kein entsprechendes Feld in einem der beiden Feeds." },
+  { key: "logo", label: "Logo", detail: "NOT_AVAILABLE_FROM_SOURCE - keine Bild-/Logo-URL in einem der beiden Feeds oder auf der Portal-Seite gefunden." },
+  { key: "benutzerinformationen", label: "Benutzerinformationen", detail: "NOT_AVAILABLE_FROM_SOURCE - der Feed enthält keine Information darüber, wer/als was eingeloggt ist; „Benutzer“ ist eine rein lokale Login-Eingabe, kein Quellenfeld." },
+  { key: "schulnummer_feld", label: "Schulnummer (Feed-eigenes Feld)", detail: "An beiden bisher geprüften Schulen leer, obwohl im Schema vorgesehen (<Kopf><schulnummer>) - als Quelle unzuverlässig. Fenyra zeigt stattdessen die vom Nutzer beim Login eingegebene, bereits bekannte Schulnummer an (Einstellungen → Schule)." },
+];
+
 const CATEGORIES: CategoryDef[] = [
-  { key: "schulinformationen", label: "Schulinformationen", parsedFields: [], stored: false, displayed: false, presence: () => false, detail: "Der Vertretungsplan-Feed liefert einen Schulnamen (<schulname>), aber Fenyra hat dafür noch kein Modellfeld/keine Anzeige." },
-  { key: "klassen", label: "Klassen", parsedFields: ["className"], stored: true, displayed: true, presence: (ls) => ls.some((l) => Boolean(l.className)) },
+  {
+    key: "schulname",
+    label: "Schulname",
+    parsedFields: [],
+    viaSyncMeta: true,
+    stored: true,
+    displayed: true,
+    presence: (_ls, ctx) => Boolean(ctx.syncMeta?.schoolName),
+    detail: "Aus dem Vertretungsplan-Feed (<kopf><schulname>), wird auf dem Schule-Bildschirm angezeigt.",
+  },
+  {
+    key: "aktualisierungszeit",
+    label: "Aktualisierungszeit (Quelle)",
+    parsedFields: [],
+    viaSyncMeta: true,
+    stored: true,
+    displayed: true,
+    presence: (_ls, ctx) => Boolean(ctx.syncMeta?.sourceGeneratedAt),
+    detail: "Aus dem mobil-Feed (<Kopf><zeitstempel>) - wann die Quelle den Plan zuletzt erzeugt hat, nicht wann Fenyra zuletzt synchronisiert hat (das steht separat als „Zuletzt synchronisiert“).",
+  },
+  {
+    key: "schulinformationen",
+    label: "Schulinformationen (allgemein)",
+    parsedFields: [],
+    stored: false,
+    displayed: false,
+    presence: () => false,
+    detail: "Beide Feeds liefern zusätzlich <FreieTage>/<freietage> (schulfreie Tage als YYMMDD-Liste) - bleibt über passthrough in rawData erhalten, wird aber nicht als eigenes Modellfeld ausgewertet/angezeigt.",
+  },
+  { key: "klassen", label: "Klassen / Klasseninformationen", parsedFields: ["className"], stored: true, displayed: true, presence: (ls) => ls.some((l) => Boolean(l.className)) },
   { key: "kurse", label: "Kurse", parsedFields: ["course"], stored: true, displayed: true, presence: (ls) => ls.some((l) => Boolean(l.course)) },
   { key: "gruppen", label: "Gruppen", parsedFields: [], stored: false, displayed: false, presence: () => false, detail: "Nicht als eigenes Konzept modelliert (nur Klasse/Kurs)." },
   { key: "schuelerprofil", label: "Schülerprofil", parsedFields: [], stored: false, displayed: false, presence: () => false, detail: "Nicht modelliert - Profil/Klassen-Auswahl ist rein lokale Einstellung, kein Quellenfeld." },
@@ -94,13 +145,8 @@ function isParsed(fields: Array<keyof Lesson>): boolean {
   return fields.every((f) => STUNDENPLAN24_PARSED_FIELDS.has(f));
 }
 
-function evaluateCategory(
-  def: CategoryDef,
-  lessons: Lesson[] | null,
-  fetchError: string | null,
-  ctx: { range: { from: string; to: string } }
-): DiagnosticEntry {
-  if (!isParsed(def.parsedFields)) {
+function evaluateCategory(def: CategoryDef, lessons: Lesson[] | null, fetchError: string | null, ctx: EvalContext): DiagnosticEntry {
+  if (!def.viaSyncMeta && !isParsed(def.parsedFields)) {
     return { key: def.key, label: def.label, status: "UNKNOWN", detail: def.detail ?? "Kein Parser-/Modellfeld für diese Kategorie vorhanden - ob die Quelle das liefert, ist ungeklärt." };
   }
   if (fetchError || !lessons) {
@@ -137,15 +183,22 @@ export async function runDataSourceAudit(
   }
 
   let lessons: Lesson[] | null = null;
+  let syncMeta: SyncMeta | null = null;
   let fetchError: string | null = null;
   try {
     const result = await adapter.fetchLessons(range);
     lessons = result.lessons;
+    syncMeta = result.syncMeta;
   } catch (error) {
     fetchError = error instanceof Error ? error.message : String(error);
   }
 
-  const categories = CATEGORIES.map((def) => evaluateCategory(def, lessons, fetchError, { range }));
+  const categories = [
+    ...CATEGORIES.map((def) => evaluateCategory(def, lessons, fetchError, { range, syncMeta })),
+    ...NOT_AVAILABLE_FROM_SOURCE.map(
+      ({ key, label, detail }): DiagnosticEntry => ({ key, label, status: "UNAVAILABLE", detail })
+    ),
+  ];
 
   return {
     sourceId: adapter.config.id,

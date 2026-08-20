@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS lessons (
@@ -45,7 +45,9 @@ CREATE TABLE IF NOT EXISTS sync_meta (
   last_synced_at TEXT,
   last_sync_status TEXT NOT NULL DEFAULT 'never',
   last_error TEXT,
-  sync_interval_minutes INTEGER NOT NULL DEFAULT 30
+  sync_interval_minutes INTEGER NOT NULL DEFAULT 30,
+  school_name TEXT,
+  source_generated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS change_events (
@@ -60,4 +62,11 @@ CREATE TABLE IF NOT EXISTS change_events (
   acknowledged INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_change_events_date ON change_events(date);
+`;
+
+/** v1 -> v2: adds schoolName/sourceGeneratedAt to sync_meta. CREATE TABLE IF NOT EXISTS above
+ * already includes them for fresh installs, so this only runs for pre-existing databases. */
+export const MIGRATE_V1_TO_V2_SQL = `
+ALTER TABLE sync_meta ADD COLUMN school_name TEXT;
+ALTER TABLE sync_meta ADD COLUMN source_generated_at TEXT;
 `;

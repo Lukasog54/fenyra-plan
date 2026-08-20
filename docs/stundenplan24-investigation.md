@@ -127,6 +127,39 @@ Schulname:         <schulname> im <kopf> vorhanden → „Schulinformationen" si
   Fenyra parst und nutzt dieses Feld aktuell nicht (kein Modellfeld, keine Anzeige) - über `.passthrough()`
   bleibt es aber verlustfrei in `rawData` erhalten, geht also nicht verloren, wird nur nicht ausgewertet.
 
+## Schuldaten jenseits des Stundenplans (2026-08-20 geprüft)
+
+Auftrag: prüfen, welche Schul-Metadaten (Schulname, Adresse, Kontakt, Logo, ...) die autorisierte Quelle
+tatsächlich liefert, und die Verarbeitung entsprechend ergänzen - nichts erfinden.
+
+**Verfügbar und jetzt verarbeitet** (Quelle → Parser → Mapper/Adapter → `sync_meta`-Tabelle → Schule-Bildschirm):
+- **Schulname**: `vplan`-Feed, `<kopf><schulname>`. War bereits im Zod-Schema erfasst, aber nirgends
+  extrahiert/gespeichert/angezeigt - Lücke geschlossen.
+- **Aktualisierungszeit (Quelle)**: `mobil`-Feed, `<Kopf><zeitstempel>` (Format wie von der Quelle geliefert,
+  z. B. „12.08.2026, 10:04" - nicht umformatiert/geraten). Getrennt von Fenyras eigenem „Zuletzt
+  synchronisiert" (das ist, wann Fenyra zuletzt abgerufen hat, nicht wann die Quelle den Plan erzeugt hat).
+
+**Nicht von der Quelle bereitgestellt** (`NOT_AVAILABLE_FROM_SOURCE`, jetzt auch im Daten-Diagnose-Audit
+gelistet): Adresse, Ort, Kontaktdaten, Ansprechpartner, Logo, Benutzerinformationen (der Feed weiß nicht, wer
+eingeloggt ist - „Benutzer" ist eine rein lokale Login-Eingabe). Die bloße Portal-Seite zu einer Schulnummer
+(`https://www.stundenplan24.de/<schulnummer>/`, ohne `mobil`/`vplan`/etc.) liefert HTTP 403 - kein
+Umgehungsversuch, nur eine Bestätigung, dass dort nichts Browsbares liegt.
+
+**Sonderfall Schulnummer**: `mobil`s `<Kopf><schulnummer>` existiert im Schema, war aber an beiden bisher
+geprüften Schulen leer - als Quelle unzuverlässig. Kein Problem in der Praxis: Fenyra zeigt ohnehin die vom
+Nutzer beim Login eingegebene, bekannte Schulnummer an.
+
+**Bereits korrekt, unverändert gelassen**: Klasseninformationen (Klassenliste, `className`) waren schon
+vollständig verarbeitet und angezeigt.
+
+**Nebenbefund beim Testen dieser Erweiterung - echter Bug gefunden und behoben**: Ein Tag ganz ohne
+Vertretungen liefert `<haupt></haupt>` (leer) statt eines Objekts mit `<aktion>`-Kindern - fast-xml-parser macht
+daraus einen leeren String, was die Zod-Validierung des GESAMTEN Vertretungsplan-Feeds für so einen Tag zum
+Absturz gebracht hätte (derselbe Fehlertyp wie der bereits bekannte `<Pl/>`/`<Unterricht/>`-Fall auf der
+mobil-Seite, hier aber bisher unbemerkt, weil noch nie ein Tag mit null Vertretungen live gegen den echten
+Parser getestet wurde). Mit demselben bewährten Muster (`emptyTagToObject`) behoben, plus dasselbe für
+`<kopfinfo/>`. Durch einen echten Parser-Testlauf gefunden, nicht durch Spekulation.
+
 ## Was weiterhin unverifiziert ist
 
 - **`Klausur`/`fussinfo`** im Vertretungsplan-Feed: nur aus dem Client-JavaScript abgeleitet, an keiner der

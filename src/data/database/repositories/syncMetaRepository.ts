@@ -7,6 +7,8 @@ interface SyncMetaRow {
   last_sync_status: SyncStatus;
   last_error: string | null;
   sync_interval_minutes: number;
+  school_name: string | null;
+  source_generated_at: string | null;
 }
 
 function rowToSyncMeta(row: SyncMetaRow): SyncMeta {
@@ -16,6 +18,8 @@ function rowToSyncMeta(row: SyncMetaRow): SyncMeta {
     lastSyncStatus: row.last_sync_status,
     lastError: row.last_error ?? undefined,
     syncIntervalMinutes: row.sync_interval_minutes,
+    schoolName: row.school_name ?? undefined,
+    sourceGeneratedAt: row.source_generated_at ?? undefined,
   };
 }
 
@@ -28,13 +32,23 @@ export async function getSyncMeta(sourceId: string): Promise<SyncMeta | null> {
 export async function saveSyncMeta(meta: SyncMeta): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO sync_meta (source_id, last_synced_at, last_sync_status, last_error, sync_interval_minutes)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO sync_meta (source_id, last_synced_at, last_sync_status, last_error, sync_interval_minutes, school_name, source_generated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(source_id) DO UPDATE SET
        last_synced_at = excluded.last_synced_at,
        last_sync_status = excluded.last_sync_status,
        last_error = excluded.last_error,
-       sync_interval_minutes = excluded.sync_interval_minutes`,
-    [meta.sourceId, meta.lastSyncedAt, meta.lastSyncStatus, meta.lastError ?? null, meta.syncIntervalMinutes]
+       sync_interval_minutes = excluded.sync_interval_minutes,
+       school_name = excluded.school_name,
+       source_generated_at = excluded.source_generated_at`,
+    [
+      meta.sourceId,
+      meta.lastSyncedAt,
+      meta.lastSyncStatus,
+      meta.lastError ?? null,
+      meta.syncIntervalMinutes,
+      meta.schoolName ?? null,
+      meta.sourceGeneratedAt ?? null,
+    ]
   );
 }

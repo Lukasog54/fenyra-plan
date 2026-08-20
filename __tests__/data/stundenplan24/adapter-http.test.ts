@@ -132,4 +132,39 @@ describe("Stundenplan24Adapter.fetchLessons", () => {
     expect(result.lessons.length).toBeGreaterThan(0);
     expect(result.syncMeta.lastSyncStatus).toBe("success");
   });
+
+  // Confirmed against the real source (curl): mobil's <Kopf><zeitstempel> and vplan's
+  // <kopf><schulname> are both genuinely provided fields, previously parsed but never
+  // extracted anywhere - see docs/stundenplan24-investigation.md.
+  it("extracts schoolName (vplan <schulname>) and sourceGeneratedAt (mobil <zeitstempel>) for today's file", async () => {
+    const now = new Date();
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const compact = iso.replace(/-/g, "");
+
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes(`PlanKl${compact}`)) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () =>
+            `<VpMobil><Kopf><zeitstempel>12.08.2026, 10:04</zeitstempel><datei>PlanKl${compact}.xml</datei></Kopf><Klassen><Kl><Kurz>10a</Kurz><Pl><Std><St>1</St></Std></Pl></Kl></Klassen></VpMobil>`,
+        });
+      }
+      if (url.includes(`VplanKl${compact}`)) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => `<vp><kopf><schulname>Testschule</schulname></kopf><haupt></haupt></vp>`,
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, text: async () => "" });
+    });
+    (global as any).fetch = mockFetch;
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const result = await adapter.fetchLessons({ from: iso, to: iso });
+
+    expect(result.syncMeta.schoolName).toBe("Testschule");
+    expect(result.syncMeta.sourceGeneratedAt).toBe("12.08.2026, 10:04");
+  });
 });
