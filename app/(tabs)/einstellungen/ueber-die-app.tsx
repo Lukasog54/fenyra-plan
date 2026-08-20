@@ -1,18 +1,44 @@
-import { View, Text, Image, Linking, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, Image, Linking, Platform, StyleSheet } from "react-native";
 import { useUpdateCheck } from "../../../src/query/hooks/useUpdateCheck";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
 import { Button } from "../../../src/components/common/Button";
 import { spacing, typography } from "../../../src/theme/tokens";
+import { downloadAndInstallApk } from "../../../src/utils/installUpdate";
 
 export default function UeberDieAppScreen() {
   const { palette } = useTheme();
   const { data: update, isLoading, refetch, isRefetching } = useUpdateCheck();
   const dismissedUpdateVersion = useSettingsStore((s) => s.dismissedUpdateVersion);
   const setDismissedUpdateVersion = useSettingsStore((s) => s.setDismissedUpdateVersion);
+  const [installProgress, setInstallProgress] = useState<number | null>(null);
+  const [installError, setInstallError] = useState(false);
 
   const showUpdateCard = update?.available && update.latestVersion !== dismissedUpdateVersion;
+
+  async function handleUpdatePress() {
+    if (!update) return;
+    if (Platform.OS !== "android" || !update.downloadUrl) {
+      Linking.openURL(update.downloadUrl ?? update.htmlUrl);
+      return;
+    }
+    setInstallError(false);
+    setInstallProgress(0);
+    try {
+      await downloadAndInstallApk(update.downloadUrl, ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+        if (totalBytesExpectedToWrite > 0) {
+          setInstallProgress(totalBytesWritten / totalBytesExpectedToWrite);
+        }
+      });
+      setInstallProgress(null);
+    } catch {
+      setInstallProgress(null);
+      setInstallError(true);
+      Linking.openURL(update.downloadUrl ?? update.htmlUrl);
+    }
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: palette.background }]}>
@@ -48,10 +74,21 @@ export default function UeberDieAppScreen() {
               <Text style={[styles.changelog, { color: palette.text }]}>{update.changelog}</Text>
             </>
           ) : null}
+          {installProgress !== null ? (
+            <Text style={[styles.label, { color: palette.textSecondary, marginTop: spacing.md }]}>
+              Wird heruntergeladen... {Math.round(installProgress * 100)}%
+            </Text>
+          ) : null}
+          {installError ? (
+            <Text style={[styles.label, { color: palette.danger, marginTop: spacing.md }]}>
+              Download im Hintergrund fehlgeschlagen - öffne stattdessen den Link im Browser.
+            </Text>
+          ) : null}
           <View style={styles.buttonRow}>
             <Button
               label="Update"
-              onPress={() => Linking.openURL(update.downloadUrl ?? update.htmlUrl)}
+              onPress={handleUpdatePress}
+              loading={installProgress !== null}
               style={styles.updateButton}
             />
             <Button label="Später" variant="secondary" onPress={() => setDismissedUpdateVersion(update.latestVersion)} style={styles.updateButton} />
