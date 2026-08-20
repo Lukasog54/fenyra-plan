@@ -4,7 +4,7 @@
     "appVersionSource": "local"
   },
   "build": {
-    "preview": {
+    "release": {
       "distribution": "internal",
       "developmentClient": false,
       "android": {

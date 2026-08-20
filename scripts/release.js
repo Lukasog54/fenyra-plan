@@ -88,7 +88,7 @@ async function main() {
   run(`git commit -m "chore: release ${tag}"`);
 
   // 2. Build on EAS (waits for completion, prints one JSON array with the finished build)
-  const buildJson = runCapture(`npx eas-cli build --platform android --profile preview --non-interactive --wait --json`);
+  const buildJson = runCapture(`npx eas-cli build --platform android --profile release --non-interactive --wait --json`);
   const builds = JSON.parse(buildJson);
   const build = builds[0];
   if (!build || build.status !== "FINISHED" || !build.artifacts?.buildUrl) {
