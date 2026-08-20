@@ -6,6 +6,7 @@ import { saveRawSnapshot } from "../database/repositories/snapshotRepository";
 import { getSyncMeta, saveSyncMeta } from "../database/repositories/syncMetaRepository";
 import { saveChangeEvents } from "../database/repositories/changeEventRepository";
 import { detectChanges } from "./ChangeDetector";
+import { notifyNewChangeEvents, notifySyncError } from "../notifications/NotificationService";
 
 export interface SyncResult {
   events: SubstitutionChangeEvent[];
@@ -78,18 +79,32 @@ async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams,
     await saveSyncMeta(syncMeta);
     onProgress?.("done");
 
+    // Never notify from the very first sync ever: it diffs against an empty `previous` set, so
+    // every already-existing lesson (including perfectly normal ones) looks like it "appeared" -
+    // categoryForEvent() already filters out plain "normal" appearances, but real substitutions
+    // that merely predate the user's first sync would still wrongly look brand new otherwise.
+    if (existingMeta !== null) {
+      await notifyNewChangeEvents(events);
+    }
+
     return { events, syncMeta };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     const syncMeta: SyncMeta = {
       sourceId,
       lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
       lastSyncStatus: "error",
-      lastError: error instanceof Error ? error.message : String(error),
+      lastError: message,
       syncIntervalMinutes: intervalMinutes,
       schoolName: existingMeta?.schoolName ?? null,
       sourceGeneratedAt: existingMeta?.sourceGeneratedAt ?? null,
     };
     await saveSyncMeta(syncMeta);
+    // Only notify on the transition from working to broken, not on every repeated failure -
+    // otherwise a prolonged outage would send a notification on every single retry.
+    if (existingMeta?.lastSyncStatus === "success") {
+      await notifySyncError(message);
+    }
     throw error;
   }
 }

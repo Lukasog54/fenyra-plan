@@ -11,6 +11,7 @@ interface ChangeEventRow {
   new_value: string | null;
   detected_at: string;
   acknowledged: number;
+  notified: number;
 }
 
 function rowToEvent(row: ChangeEventRow): SubstitutionChangeEvent {
@@ -24,6 +25,7 @@ function rowToEvent(row: ChangeEventRow): SubstitutionChangeEvent {
     newValue: row.new_value,
     detectedAt: row.detected_at,
     acknowledged: row.acknowledged === 1,
+    notified: row.notified === 1,
   };
 }
 
@@ -34,8 +36,8 @@ export async function saveChangeEvents(events: SubstitutionChangeEvent[]): Promi
     for (const event of events) {
       await db.runAsync(
         `INSERT OR REPLACE INTO change_events
-          (id, lesson_id, date, class_name, field, previous_value, new_value, detected_at, acknowledged)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+          (id, lesson_id, date, class_name, field, previous_value, new_value, detected_at, acknowledged, notified)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [
           event.id,
           event.lessonId,
@@ -46,6 +48,7 @@ export async function saveChangeEvents(events: SubstitutionChangeEvent[]): Promi
           event.newValue,
           event.detectedAt,
           event.acknowledged ? 1 : 0,
+          event.notified ? 1 : 0,
         ]
       );
     }
@@ -59,4 +62,11 @@ export async function getChangeEventsForRange(from: string, to: string): Promise
     [from, to]
   );
   return rows.map(rowToEvent);
+}
+
+export async function markEventsNotified(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const placeholders = ids.map(() => "?").join(",");
+  await db.runAsync(`UPDATE change_events SET notified = 1 WHERE id IN (${placeholders})`, ids);
 }

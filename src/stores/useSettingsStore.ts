@@ -2,9 +2,19 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { DataSourceConfig, Stundenplan24SourceConfig } from "../data/models/SchoolDataSource";
+import type { NotificationCategory } from "../data/notifications/types";
 import { STUNDENPLAN24_SOURCE_ID, STUNDENPLAN24_BASE_URL } from "../data/constants";
 
 export type ThemePreference = "light" | "dark" | "amoled" | "system";
+
+const DEFAULT_NOTIFICATION_CATEGORIES: Record<NotificationCategory, boolean> = {
+  vertretungen: true,
+  ausfaelle: true,
+  raumaenderungen: true,
+  lehreraenderungen: true,
+  syncFehler: true,
+  updates: true,
+};
 
 interface SettingsState {
   theme: ThemePreference;
@@ -12,6 +22,9 @@ interface SettingsState {
   syncIntervalMinutes: number;
   /** Automatic sync (interval/resume/launch) only runs on Wi-Fi when true; manual sync is unaffected. */
   wifiOnlySync: boolean;
+  /** Master switch - off by default until the user explicitly opts in (which triggers the OS permission prompt). */
+  notificationsEnabled: boolean;
+  notificationCategories: Record<NotificationCategory, boolean>;
   selectedClassName: string | null;
   displayName: string;
 
@@ -20,6 +33,8 @@ interface SettingsState {
   updateSchoolConfig: (partial: Partial<Stundenplan24SourceConfig>) => void;
   setSyncIntervalMinutes: (minutes: number) => void;
   setWifiOnlySync: (enabled: boolean) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
+  setNotificationCategory: (category: NotificationCategory, enabled: boolean) => void;
   setSelectedClassName: (className: string | null) => void;
   setDisplayName: (name: string) => void;
 }
@@ -38,6 +53,8 @@ export const useSettingsStore = create<SettingsState>()(
       schoolConfig: DEFAULT_SCHOOL_CONFIG,
       syncIntervalMinutes: 30,
       wifiOnlySync: false,
+      notificationsEnabled: false,
+      notificationCategories: DEFAULT_NOTIFICATION_CATEGORIES,
       selectedClassName: null,
       displayName: "",
 
@@ -59,6 +76,9 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setSyncIntervalMinutes: (syncIntervalMinutes) => set({ syncIntervalMinutes }),
       setWifiOnlySync: (wifiOnlySync) => set({ wifiOnlySync }),
+      setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
+      setNotificationCategory: (category, enabled) =>
+        set((state) => ({ notificationCategories: { ...state.notificationCategories, [category]: enabled } })),
       setSelectedClassName: (selectedClassName) => set({ selectedClassName }),
       setDisplayName: (displayName) => set({ displayName }),
     }),

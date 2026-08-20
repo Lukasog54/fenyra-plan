@@ -7,8 +7,8 @@ import type { SyncPhase } from "../../../src/data/sync/SyncService";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
 import { Button } from "../../../src/components/common/Button";
+import { ToggleRow } from "../../../src/components/common/ToggleRow";
 import { radius, spacing, typography } from "../../../src/theme/tokens";
-import type { Palette } from "../../../src/theme/colors";
 
 const INTERVAL_OPTIONS = [5, 10, 15, 30, 60, 180, 360];
 
@@ -58,25 +58,6 @@ function ProgressChecklist({ progress }: { progress: SyncPhase | null }) {
   );
 }
 
-function ToggleRow({ label, hint, value, onToggle, palette }: { label: string; hint?: string; value: boolean; onToggle: () => void; palette: Palette }) {
-  return (
-    <Pressable onPress={onToggle} style={styles.optionRow}>
-      <View style={{ flex: 1, paddingRight: spacing.md }}>
-        <Text style={[styles.optionLabel, { color: palette.text }]}>{label}</Text>
-        {hint ? <Text style={[styles.toggleHint, { color: palette.textSecondary }]}>{hint}</Text> : null}
-      </View>
-      <View
-        style={[
-          styles.toggleTrack,
-          { backgroundColor: value ? palette.accent : palette.border },
-        ]}
-      >
-        <View style={[styles.toggleThumb, { backgroundColor: palette.background, alignSelf: value ? "flex-end" : "flex-start" }]} />
-      </View>
-    </Pressable>
-  );
-}
-
 export default function SynchronisierungScreen() {
   const { palette } = useTheme();
   const syncIntervalMinutes = useSettingsStore((s) => s.syncIntervalMinutes);
@@ -123,7 +104,6 @@ export default function SynchronisierungScreen() {
           hint="Betrifft automatische Synchronisierung (Intervall, Start, Wiederherstellung) - der Jetzt-synchronisieren-Button oben funktioniert immer."
           value={wifiOnlySync}
           onToggle={() => setWifiOnlySync(!wifiOnlySync)}
-          palette={palette}
         />
       </Card>
     </ScrollView>
@@ -169,28 +149,11 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: typography.body.fontSize,
   },
-  toggleHint: {
-    fontSize: typography.caption.fontSize,
-    marginTop: 2,
-    lineHeight: 15,
-  },
   radio: {
     width: 18,
     height: 18,
     borderRadius: radius.pill,
     borderWidth: 2,
-  },
-  toggleTrack: {
-    width: 40,
-    height: 24,
-    borderRadius: radius.pill,
-    padding: 3,
-    justifyContent: "center",
-  },
-  toggleThumb: {
-    width: 18,
-    height: 18,
-    borderRadius: radius.pill,
   },
   progressList: {
     marginTop: spacing.md,

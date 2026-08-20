@@ -1,11 +1,15 @@
+import * as Notifications from "expo-notifications";
 import { sync } from "../../../src/data/sync/SyncService";
 import * as lessonRepository from "../../../src/data/database/repositories/lessonRepository";
 import * as syncMetaRepository from "../../../src/data/database/repositories/syncMetaRepository";
+import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 
 jest.mock("../../../src/data/database/repositories/lessonRepository");
 jest.mock("../../../src/data/database/repositories/syncMetaRepository");
 jest.mock("../../../src/data/database/repositories/snapshotRepository");
 jest.mock("../../../src/data/database/repositories/changeEventRepository");
+
+const mockedSchedule = Notifications.scheduleNotificationAsync as jest.Mock;
 
 const mockedLessonRepo = lessonRepository as jest.Mocked<typeof lessonRepository>;
 const mockedSyncMetaRepo = syncMetaRepository as jest.Mocked<typeof syncMetaRepository>;
@@ -45,6 +49,17 @@ beforeEach(() => {
   mockedSyncMetaRepo.getSyncMeta.mockResolvedValue(null);
   mockedSyncMetaRepo.saveSyncMeta.mockResolvedValue(undefined);
   mockedLessonRepo.replaceLessonsForDates.mockResolvedValue(undefined);
+  useSettingsStore.setState({
+    notificationsEnabled: true,
+    notificationCategories: {
+      vertretungen: true,
+      ausfaelle: true,
+      raumaenderungen: true,
+      lehreraenderungen: true,
+      syncFehler: true,
+      updates: true,
+    },
+  });
 });
 
 describe("SyncService.sync concurrency", () => {
@@ -144,5 +159,67 @@ describe("SyncService.sync progress reporting", () => {
     await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" }, (phase) => phases.push(phase))).rejects.toThrow("kaputt");
 
     expect(phases).toEqual(["connecting", "fetching"]);
+  });
+});
+
+describe("SyncService.sync notification wiring", () => {
+  it("does not notify on the very first sync ever, even for a genuine substitution", async () => {
+    const sourceId = nextSourceId();
+    mockedSyncMetaRepo.getSyncMeta.mockResolvedValue(null); // never synced before
+    const adapter = makeAdapter(sourceId, async () => ({
+      lessons: [makeLesson(sourceId, { id: "l1", status: "cancelled" })],
+      syncMeta: { sourceId, lastSyncedAt: null, lastSyncStatus: "success", syncIntervalMinutes: 30 },
+      datesFetched: ["2026-08-19"],
+    }));
+
+    await sync(adapter, { from: "2026-08-19", to: "2026-08-19" });
+
+    expect(mockedSchedule).not.toHaveBeenCalled();
+  });
+
+  it("notifies for a genuine substitution detected on a later sync (not the first)", async () => {
+    const sourceId = nextSourceId();
+    mockedSyncMetaRepo.getSyncMeta.mockResolvedValue({
+      sourceId,
+      lastSyncedAt: "2026-08-18T10:00:00.000Z",
+      lastSyncStatus: "success",
+      syncIntervalMinutes: 30,
+    });
+    mockedLessonRepo.getLessonsForRange.mockResolvedValue([makeLesson(sourceId, { id: "l1", status: "normal" })]);
+    const adapter = makeAdapter(sourceId, async () => ({
+      lessons: [makeLesson(sourceId, { id: "l1", status: "cancelled" })],
+      syncMeta: { sourceId, lastSyncedAt: null, lastSyncStatus: "success", syncIntervalMinutes: 30 },
+      datesFetched: ["2026-08-19"],
+    }));
+
+    await sync(adapter, { from: "2026-08-19", to: "2026-08-19" });
+
+    expect(mockedSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies on a sync error only when the previous sync had succeeded (not repeated failures)", async () => {
+    const sourceId = nextSourceId();
+    mockedSyncMetaRepo.getSyncMeta.mockResolvedValue({
+      sourceId,
+      lastSyncedAt: "2026-08-18T10:00:00.000Z",
+      lastSyncStatus: "success",
+      syncIntervalMinutes: 30,
+    });
+    const adapter = makeAdapter(sourceId, async () => {
+      throw new Error("Verbindung fehlgeschlagen");
+    });
+
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" })).rejects.toThrow();
+    expect(mockedSchedule).toHaveBeenCalledTimes(1);
+
+    // A second consecutive failure (previous status now "error") must not notify again.
+    mockedSyncMetaRepo.getSyncMeta.mockResolvedValue({
+      sourceId,
+      lastSyncedAt: "2026-08-18T10:00:00.000Z",
+      lastSyncStatus: "error",
+      syncIntervalMinutes: 30,
+    });
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" })).rejects.toThrow();
+    expect(mockedSchedule).toHaveBeenCalledTimes(1);
   });
 });

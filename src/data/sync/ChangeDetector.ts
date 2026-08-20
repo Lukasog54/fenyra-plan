@@ -27,6 +27,7 @@ function makeEvent(
     newValue,
     detectedAt,
     acknowledged: false,
+    notified: false,
   };
 }
 

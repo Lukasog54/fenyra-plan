@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS lessons (
@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS change_events (
   previous_value TEXT,
   new_value TEXT,
   detected_at TEXT NOT NULL,
-  acknowledged INTEGER NOT NULL DEFAULT 0
+  acknowledged INTEGER NOT NULL DEFAULT 0,
+  notified INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_change_events_date ON change_events(date);
 `;
@@ -69,4 +70,10 @@ CREATE INDEX IF NOT EXISTS idx_change_events_date ON change_events(date);
 export const MIGRATE_V1_TO_V2_SQL = `
 ALTER TABLE sync_meta ADD COLUMN school_name TEXT;
 ALTER TABLE sync_meta ADD COLUMN source_generated_at TEXT;
+`;
+
+/** v2 -> v3: adds "already sent a push notification for this" tracking, distinct from
+ * `acknowledged` (reserved for a possible future in-app "mark as read", never written to yet). */
+export const MIGRATE_V2_TO_V3_SQL = `
+ALTER TABLE change_events ADD COLUMN notified INTEGER NOT NULL DEFAULT 0;
 `;
