@@ -25,6 +25,9 @@ interface SettingsState {
   /** Master switch - off by default until the user explicitly opts in (which triggers the OS permission prompt). */
   notificationsEnabled: boolean;
   notificationCategories: Record<NotificationCategory, boolean>;
+  /** Version the user dismissed via "Später" on the update screen - suppresses re-nagging for that
+   * same version until a newer one is published. */
+  dismissedUpdateVersion: string | null;
   selectedClassName: string | null;
   displayName: string;
 
@@ -35,6 +38,7 @@ interface SettingsState {
   setWifiOnlySync: (enabled: boolean) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setNotificationCategory: (category: NotificationCategory, enabled: boolean) => void;
+  setDismissedUpdateVersion: (version: string | null) => void;
   setSelectedClassName: (className: string | null) => void;
   setDisplayName: (name: string) => void;
 }
@@ -55,6 +59,7 @@ export const useSettingsStore = create<SettingsState>()(
       wifiOnlySync: false,
       notificationsEnabled: false,
       notificationCategories: DEFAULT_NOTIFICATION_CATEGORIES,
+      dismissedUpdateVersion: null,
       selectedClassName: null,
       displayName: "",
 
@@ -79,6 +84,7 @@ export const useSettingsStore = create<SettingsState>()(
       setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
       setNotificationCategory: (category, enabled) =>
         set((state) => ({ notificationCategories: { ...state.notificationCategories, [category]: enabled } })),
+      setDismissedUpdateVersion: (dismissedUpdateVersion) => set({ dismissedUpdateVersion }),
       setSelectedClassName: (selectedClassName) => set({ selectedClassName }),
       setDisplayName: (displayName) => set({ displayName }),
     }),
