@@ -1,14 +1,16 @@
 import { View, ScrollView, Text, StyleSheet, ActivityIndicator } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { useSyncMeta } from "../../../src/query/hooks/useSync";
 import { useOfflineStats } from "../../../src/query/hooks/useOfflineStats";
 import { getLessonsForRange } from "../../../src/data/database/repositories/lessonRepository";
 import { resolveAdapter } from "../../../src/data/adapters/registry";
 import { runDataSourceAudit, type DiagnosticEntry, type DiagnosticStatus } from "../../../src/data/diagnostics/DataSourceDiagnostics";
+import { checkDataIntegrity, type DataIntegrityReport } from "../../../src/data/diagnostics/DataIntegrityCheck";
 import { defaultSyncRange } from "../../../src/utils/date";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
+import { Button } from "../../../src/components/common/Button";
 import type { Palette } from "../../../src/theme/colors";
 import { radius, spacing, typography } from "../../../src/theme/tokens";
 
@@ -28,16 +30,22 @@ const STATUS_LABELS: Record<DiagnosticStatus, string> = {
   AVAILABLE_BUT_NOT_PARSED: "verfügbar, nicht geparst",
   AVAILABLE_BUT_NOT_STORED: "verfügbar, nicht gespeichert",
   AVAILABLE_BUT_NOT_DISPLAYED: "verfügbar, nicht angezeigt",
+  AVAILABLE_BUT_BROKEN: "verfügbar, aber fehlerhaft verarbeitet",
   ERROR: "Fehler",
   UNKNOWN: "nicht feststellbar",
+  PASS: "OK",
+  FAIL: "Fehler",
 };
 
 function statusColor(status: DiagnosticStatus, palette: Palette): string {
   switch (status) {
     case "AVAILABLE":
+    case "PASS":
       return palette.success;
     case "UNAVAILABLE":
     case "ERROR":
+    case "AVAILABLE_BUT_BROKEN":
+    case "FAIL":
       return palette.danger;
     case "AVAILABLE_BUT_NOT_PARSED":
     case "AVAILABLE_BUT_NOT_STORED":
@@ -46,6 +54,16 @@ function statusColor(status: DiagnosticStatus, palette: Palette): string {
     case "UNKNOWN":
       return palette.muted;
   }
+}
+
+function IntegrityRow({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+  const { palette } = useTheme();
+  return (
+    <View style={styles.integrityRow}>
+      <Text style={[styles.label, { color: palette.textSecondary }]}>{label}</Text>
+      <Text style={[styles.integrityValue, { color: danger && value > 0 ? palette.danger : palette.text }]}>{value}</Text>
+    </View>
+  );
 }
 
 function AuditRow({ entry }: { entry: DiagnosticEntry }) {
@@ -88,6 +106,11 @@ export default function DiagnoseScreen() {
     enabled: isConfigured,
   });
 
+  const integrityMutation = useMutation({
+    mutationFn: () => checkDataIntegrity(resolveAdapter(schoolConfig), { from, to }),
+  });
+  const integrity: DataIntegrityReport | undefined = integrityMutation.data;
+
   return (
     <ScrollView style={{ backgroundColor: palette.background }} contentContainerStyle={styles.container}>
       <DiagnosticRow label="Schulnummer" value={schoolConfig.stundenplan24?.schoolId || "—"} />
@@ -102,6 +125,21 @@ export default function DiagnoseScreen() {
           ? `WARNUNG: ${unmappedCount} Stunde(n) mit nicht klassifizierbarer Änderung (status "unknown"). Rohdaten dazu sind über die Rohdaten-Snapshots einsehbar.`
           : "Keine unklassifizierten Änderungen im aktuellen Zeitraum."}
       </Text>
+
+      <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>SYSTEM-CHECK</Text>
+
+      {auditLoading ? (
+        <ActivityIndicator color={palette.accent} style={{ marginTop: spacing.md }} />
+      ) : audit ? (
+        <Card>
+          {audit.systemChecks.map((entry, index) => (
+            <View key={entry.key}>
+              <AuditRow entry={entry} />
+              {index < audit.systemChecks.length - 1 ? <View style={[styles.divider, { backgroundColor: palette.border }]} /> : null}
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>DATENQUELLEN-AUDIT</Text>
 
@@ -121,6 +159,46 @@ export default function DiagnoseScreen() {
       ) : (
         <Text style={{ color: palette.textSecondary }}>Noch nicht konfiguriert.</Text>
       )}
+
+      <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>DATENINTEGRITÄT</Text>
+      <Text style={[styles.integrityHint, { color: palette.textSecondary }]}>
+        Vergleicht einen frischen Abruf direkt von der Quelle mit den aktuell gespeicherten Fenyra-Daten für
+        denselben Zeitraum. Abweichungen können auch bedeuten, dass sich die Quelle seit der letzten
+        Synchronisierung geändert hat, nicht zwingend ein Fenyra-Fehler.
+      </Text>
+      <Button
+        label="Datenintegrität prüfen"
+        onPress={() => integrityMutation.mutate()}
+        loading={integrityMutation.isPending}
+        disabled={!isConfigured}
+        style={{ marginTop: spacing.sm }}
+      />
+      {integrityMutation.isError ? (
+        <Text style={[styles.integrityHint, { color: palette.danger, marginTop: spacing.sm }]}>
+          {integrityMutation.error instanceof Error ? integrityMutation.error.message : "Prüfung fehlgeschlagen."}
+        </Text>
+      ) : null}
+      {integrity ? (
+        <Card style={{ marginTop: spacing.sm }}>
+          <IntegrityRow label="SOURCE RECORDS" value={integrity.sourceRecordCount} />
+          <IntegrityRow label="FENYRA RECORDS" value={integrity.fenyraRecordCount} />
+          <IntegrityRow label="MISSING" value={integrity.missing.length} danger />
+          <IntegrityRow label="EXTRA" value={integrity.extra.length} danger />
+          <IntegrityRow label="MISMATCH" value={integrity.mismatched.length} danger />
+          {integrity.mismatched.length > 0 ? (
+            <View style={{ marginTop: spacing.sm }}>
+              {integrity.mismatched.slice(0, 10).map((m, i) => (
+                <Text key={i} style={[styles.auditDetail, { color: palette.textSecondary }]}>
+                  {m.field}: „{String(m.sourceValue)}" (Quelle) vs. „{String(m.fenyraValue)}" (Fenyra)
+                </Text>
+              ))}
+              {integrity.mismatched.length > 10 ? (
+                <Text style={[styles.auditDetail, { color: palette.muted }]}>+ {integrity.mismatched.length - 10} weitere</Text>
+              ) : null}
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
     </ScrollView>
   );
 }
@@ -153,6 +231,20 @@ const styles = StyleSheet.create({
     fontSize: typography.caption.fontSize,
     marginTop: spacing.sm,
     lineHeight: 18,
+  },
+  integrityHint: {
+    fontSize: typography.caption.fontSize,
+    lineHeight: 16,
+  },
+  integrityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+  },
+  integrityValue: {
+    fontSize: typography.body.fontSize,
+    fontWeight: "700",
   },
   sectionHeading: {
     fontSize: typography.label.fontSize,

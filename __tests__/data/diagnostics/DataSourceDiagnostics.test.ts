@@ -11,6 +11,12 @@ function findCategory(report: Awaited<ReturnType<typeof runDataSourceAudit>>, ke
   return entry;
 }
 
+function findSystemCheck(report: Awaited<ReturnType<typeof runDataSourceAudit>>, key: string) {
+  const entry = report.systemChecks.find((c) => c.key === key);
+  if (!entry) throw new Error(`system check ${key} missing from report`);
+  return entry;
+}
+
 function makeLesson(overrides: Partial<Lesson>): Lesson {
   return {
     id: `l_${Math.random()}`,
@@ -110,5 +116,53 @@ describe("runDataSourceAudit against the unconfigured stundenplan24 adapter", ()
     expect(report.authentication.status).toBe("UNAVAILABLE");
     expect(findCategory(report, "klassen").status).toBe("UNKNOWN");
     expect(findCategory(report, "kurse").status).toBe("UNKNOWN");
+  });
+
+  it("reports UNKNOWN (not FAIL) for erreichbarkeit/authentifizierung when nothing was actually attempted", async () => {
+    const adapter = new Stundenplan24Adapter({ id: "stundenplan24", displayName: "Stundenplan24", kind: "stundenplan24" });
+    const report = await runDataSourceAudit(adapter, RANGE);
+
+    expect(findSystemCheck(report, "erreichbarkeit").status).toBe("UNKNOWN");
+    expect(findSystemCheck(report, "authentifizierung_check").status).toBe("UNKNOWN");
+  });
+});
+
+describe("runDataSourceAudit system checks", () => {
+  it("reports datenabruf/parser/mapping as PASS when fetchLessons succeeds, FAIL with detail when it throws", async () => {
+    const okReport = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    expect(findSystemCheck(okReport, "datenabruf").status).toBe("PASS");
+
+    const brokenAdapter: SchoolDataSource = {
+      ...fullyWiredAdapter,
+      fetchLessons: async () => {
+        throw new Error("kaputt");
+      },
+    };
+    const failReport = await runDataSourceAudit(brokenAdapter, RANGE);
+    const entry = findSystemCheck(failReport, "datenabruf");
+    expect(entry.status).toBe("FAIL");
+    expect(entry.detail).toBe("kaputt");
+  });
+
+  it("reports session as PASS with an explanatory detail (stateless Basic Auth, nothing to check)", async () => {
+    const report = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    const entry = findSystemCheck(report, "session");
+    expect(entry.status).toBe("PASS");
+    expect(entry.detail).toMatch(/kein Sitzungsmechanismus/i);
+  });
+
+  it("reports datenbank as FAIL with a detail when getDb() fails (Jest has no native SQLite bridge, unlike a real device)", async () => {
+    const report = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    const entry = findSystemCheck(report, "datenbank");
+    expect(entry.status).toBe("FAIL");
+    expect(entry.detail).toBeTruthy();
+  });
+
+  it("reports erreichbarkeit UNKNOWN and authentifizierung PASS when testConnection succeeds without setting reachable explicitly", async () => {
+    const report = await runDataSourceAudit(fullyWiredAdapter, RANGE);
+    // fullyWiredAdapter's fake testConnection() returns { ok: true } with no `reachable` field -
+    // erreichbarkeit must stay UNKNOWN rather than assuming PASS from an unset field.
+    expect(findSystemCheck(report, "erreichbarkeit").status).toBe("UNKNOWN");
+    expect(findSystemCheck(report, "authentifizierung_check").status).toBe("PASS");
   });
 });

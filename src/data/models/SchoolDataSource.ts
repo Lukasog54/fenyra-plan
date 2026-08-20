@@ -45,6 +45,12 @@ export interface FetchLessonsResult {
 export interface ConnectionTestResult {
   ok: boolean;
   message?: string;
+  /**
+   * Whether the source responded at all (even with an error status like 401), as opposed to no
+   * response ever arriving (DNS/network failure). Undefined when not configured (never attempted).
+   * Lets diagnostics distinguish "Stundenplan24 unreachable" from "reachable but not authenticated".
+   */
+  reachable?: boolean;
 }
 
 /**

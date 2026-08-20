@@ -1,6 +1,9 @@
 import type { Lesson } from "../models/Lesson";
 import type { SchoolDataSource } from "../models/SchoolDataSource";
 import type { SyncMeta } from "../models/SyncMeta";
+import { getSyncMeta } from "../database/repositories/syncMetaRepository";
+import { getDb } from "../database/db";
+import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { todayIsoDate } from "../../utils/date";
 
 export type DiagnosticStatus =
@@ -9,8 +12,11 @@ export type DiagnosticStatus =
   | "AVAILABLE_BUT_NOT_PARSED"
   | "AVAILABLE_BUT_NOT_STORED"
   | "AVAILABLE_BUT_NOT_DISPLAYED"
+  | "AVAILABLE_BUT_BROKEN"
   | "ERROR"
-  | "UNKNOWN";
+  | "UNKNOWN"
+  | "PASS"
+  | "FAIL";
 
 export interface DiagnosticEntry {
   key: string;
@@ -24,6 +30,8 @@ export interface DataSourceAuditReport {
   generatedAt: string;
   range: { from: string; to: string };
   authentication: DiagnosticEntry;
+  /** Pipeline-stage health (Internetverbindung/Erreichbarkeit/Session/Datenabruf/Datenbank/Sync), PASS/FAIL/UNKNOWN. */
+  systemChecks: DiagnosticEntry[];
   categories: DiagnosticEntry[];
 }
 
@@ -164,23 +172,42 @@ export async function runDataSourceAudit(
   adapter: SchoolDataSource,
   range: { from: string; to: string }
 ): Promise<DataSourceAuditReport> {
-  let authentication: DiagnosticEntry;
+  const internetverbindung: DiagnosticEntry = {
+    key: "internetverbindung",
+    label: "Internetverbindung",
+    status: useNetworkStatus.getIsOnline() ? "PASS" : "FAIL",
+  };
+
+  let connectionResult: Awaited<ReturnType<SchoolDataSource["testConnection"]>> | null = null;
+  let connectionError: string | null = null;
   try {
-    const result = await adapter.testConnection();
-    authentication = {
-      key: "authentication",
-      label: "Authentifizierung",
-      status: result.ok ? "AVAILABLE" : "UNAVAILABLE",
-      detail: result.message,
-    };
+    connectionResult = await adapter.testConnection();
   } catch (error) {
-    authentication = {
-      key: "authentication",
-      label: "Authentifizierung",
-      status: "ERROR",
-      detail: error instanceof Error ? error.message : String(error),
-    };
+    connectionError = error instanceof Error ? error.message : String(error);
   }
+
+  const authentication: DiagnosticEntry = connectionError
+    ? { key: "authentication", label: "Authentifizierung", status: "ERROR", detail: connectionError }
+    : { key: "authentication", label: "Authentifizierung", status: connectionResult!.ok ? "AVAILABLE" : "UNAVAILABLE", detail: connectionResult!.message };
+
+  const erreichbarkeit: DiagnosticEntry = {
+    key: "erreichbarkeit",
+    label: "Stundenplan24-Erreichbarkeit",
+    status: connectionError ? "FAIL" : connectionResult!.reachable ? "PASS" : connectionResult!.reachable === false ? "FAIL" : "UNKNOWN",
+    detail: connectionError ?? undefined,
+  };
+  const authCheck: DiagnosticEntry = {
+    key: "authentifizierung_check",
+    label: "Authentifizierung",
+    status: connectionError ? "FAIL" : connectionResult!.ok ? "PASS" : connectionResult!.reachable ? "FAIL" : "UNKNOWN",
+    detail: connectionResult?.message,
+  };
+  const session: DiagnosticEntry = {
+    key: "session",
+    label: "Session",
+    status: "PASS",
+    detail: "Kein Sitzungsmechanismus in der Quelle - jede Anfrage authentifiziert sich selbst (Basic Auth, kein Cookie/Token). Nichts zu prüfen, kein Ablauf möglich.",
+  };
 
   let lessons: Lesson[] | null = null;
   let syncMeta: SyncMeta | null = null;
@@ -192,6 +219,33 @@ export async function runDataSourceAudit(
   } catch (error) {
     fetchError = error instanceof Error ? error.message : String(error);
   }
+
+  const datenabruf: DiagnosticEntry = {
+    key: "datenabruf",
+    label: "Datenabruf / Parser / Mapping",
+    status: fetchError ? "FAIL" : "PASS",
+    detail: fetchError ?? undefined,
+  };
+
+  let datenbank: DiagnosticEntry;
+  try {
+    await getDb();
+    datenbank = { key: "datenbank", label: "Datenbank", status: "PASS" };
+  } catch (error) {
+    datenbank = { key: "datenbank", label: "Datenbank", status: "FAIL", detail: error instanceof Error ? error.message : String(error) };
+  }
+
+  const persistedSyncMeta = await getSyncMeta(adapter.config.id).catch(() => null);
+  const synchronisierung: DiagnosticEntry = persistedSyncMeta
+    ? {
+        key: "synchronisierung",
+        label: "Synchronisierung",
+        status: persistedSyncMeta.lastSyncStatus === "success" ? "PASS" : persistedSyncMeta.lastSyncStatus === "error" ? "FAIL" : "UNKNOWN",
+        detail: persistedSyncMeta.lastError ?? undefined,
+      }
+    : { key: "synchronisierung", label: "Synchronisierung", status: "UNKNOWN", detail: "Noch nie synchronisiert." };
+
+  const systemChecks: DiagnosticEntry[] = [internetverbindung, erreichbarkeit, authCheck, session, datenabruf, datenbank, synchronisierung];
 
   const categories = [
     ...CATEGORIES.map((def) => evaluateCategory(def, lessons, fetchError, { range, syncMeta })),
@@ -205,6 +259,7 @@ export async function runDataSourceAudit(
     generatedAt: new Date().toISOString(),
     range,
     authentication,
+    systemChecks,
     categories,
   };
 }

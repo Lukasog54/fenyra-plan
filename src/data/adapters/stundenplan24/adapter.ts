@@ -215,16 +215,17 @@ export class Stundenplan24Adapter implements SchoolDataSource {
 
     try {
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/${schoolId}/mobil/`, { method: "GET", headers });
-
+      // Any HTTP response (even 401/404) means the server was reachable - only a thrown fetch
+      // (network/DNS failure, caught below) means it genuinely wasn't.
       if (response.status === 401 || response.status === 403) {
-        return { ok: false, message: "Anmeldung fehlgeschlagen. Bitte Benutzername und Passwort prüfen." };
+        return { ok: false, reachable: true, message: "Anmeldung fehlgeschlagen. Bitte Benutzername und Passwort prüfen." };
       }
       if (!response.ok) {
-        return { ok: false, message: `Server antwortet mit Status ${response.status}. Bitte Server-URL und Schulnummer prüfen.` };
+        return { ok: false, reachable: true, message: `Server antwortet mit Status ${response.status}. Bitte Server-URL und Schulnummer prüfen.` };
       }
-      return { ok: true, message: "Verbindung erfolgreich. Stundenplan- und Vertretungsdaten können jetzt synchronisiert werden." };
+      return { ok: true, reachable: true, message: "Verbindung erfolgreich. Stundenplan- und Vertretungsdaten können jetzt synchronisiert werden." };
     } catch {
-      return { ok: false, message: "Verbindung fehlgeschlagen. Bitte Server-URL und Internetverbindung prüfen." };
+      return { ok: false, reachable: false, message: "Verbindung fehlgeschlagen. Bitte Server-URL und Internetverbindung prüfen." };
     }
   }
 }
