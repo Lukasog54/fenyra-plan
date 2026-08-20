@@ -7,12 +7,12 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "@tanstack/react-query": "^5.101.4",
-    "expo": "~57.0.14",
+    "expo": "~57.0.15",
     "expo-constants": "~57.0.12",
     "expo-font": "~57.0.1",
-    "expo-linking": "~57.0.6",
+    "expo-linking": "~57.0.7",
     "expo-notifications": "~57.0.13",
-    "expo-router": "~57.0.14",
+    "expo-router": "~57.0.15",
     "expo-secure-store": "~57.0.1",
     "expo-splash-screen": "~57.0.7",
     "expo-sqlite": "~57.0.1",
@@ -43,7 +43,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "jest"
+    "test": "jest",
+    "build:android": "eas build --platform android --profile preview --non-interactive",
+    "push": "git push && git push --tags",
+    "release": "node scripts/release.js"
   },
   "private": true
 }
