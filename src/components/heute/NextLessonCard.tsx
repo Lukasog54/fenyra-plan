@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Lesson } from "../../data/models/Lesson";
 import { Card } from "../common/Card";
 import { StatusBadge } from "../common/StatusBadge";
+import { PulsingDot } from "../common/PulsingDot";
 import { useTheme } from "../../theme/ThemeProvider";
 import { describeLessonChanges } from "../../utils/lessonDiff";
 import { spacing, typography } from "../../theme/tokens";
@@ -60,16 +61,19 @@ function LessonSection({ lesson, isParallel }: { lesson: Lesson; isParallel: boo
  * each with its own status - otherwise only one would show as "next" and the other would be
  * easy to miss further down in the day's list.
  */
-export function NextLessonCard({ lessons }: { lessons: Lesson[] }) {
+export function NextLessonCard({ lessons, isCurrent = false }: { lessons: Lesson[]; isCurrent?: boolean }) {
   const { palette } = useTheme();
   const first = lessons[0];
   const isParallel = lessons.length > 1;
 
   return (
-    <Card glowing style={styles.card}>
+    <Card glowing={isCurrent} style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={[styles.eyebrow, { color: palette.accent }]}>NÄCHSTE STUNDE</Text>
-        <Ionicons name="arrow-forward-circle" size={22} color={palette.accent} />
+        <View style={styles.eyebrowRow}>
+          {isCurrent ? <PulsingDot color={palette.accent} size={6} /> : null}
+          <Text style={[styles.eyebrow, { color: palette.accent }]}>{isCurrent ? "JETZT" : "NÄCHSTE STUNDE"}</Text>
+        </View>
+        <Ionicons name={isCurrent ? "play-circle" : "arrow-forward-circle"} size={22} color={palette.accent} />
       </View>
 
       <Text style={[styles.time, { color: palette.textSecondary }]}>
@@ -95,6 +99,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.xs,
+  },
+  eyebrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   eyebrow: {
     fontSize: typography.label.fontSize,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { Image, Text, ActivityIndicator, AppState, AppStateStatus, StyleSheet } from "react-native";
@@ -17,9 +17,10 @@ import { STUNDENPLAN24_SOURCE_ID } from "../src/data/constants";
 import { defaultSyncRange, todayIsoDate, addDays, nowHHmm } from "../src/utils/date";
 import { queryKeys } from "../src/query/keys";
 import { useNetworkStatus } from "../src/hooks/useNetworkStatus";
+import { addNotificationTapListener } from "../src/data/notifications/NotificationService";
 import { LoginScreen } from "../src/components/onboarding/LoginScreen";
 import { ClassSelectionScreen } from "../src/components/onboarding/ClassSelectionScreen";
-import { spacing, typography } from "../src/theme/tokens";
+import { motion, spacing, typography } from "../src/theme/tokens";
 
 // Keeps the native splash on screen until dbReady below explicitly hides it, so there's no gap
 // between the native splash disappearing and the app having anything ready to show.
@@ -83,6 +84,16 @@ function RootNavigation() {
     return () => subscription.remove();
   }, [dbReady, hasCredentials]);
 
+  // Tapping a substitution notification jumps straight to the affected day in the Plan tab,
+  // instead of just opening the app to whatever screen was last active.
+  useEffect(() => {
+    if (!dbReady || !hasClass) return;
+    return addNotificationTapListener((date) => {
+      useUiStore.getState().setSelectedDate(date);
+      router.push("/plan");
+    });
+  }, [dbReady, hasClass]);
+
   // Default the Plan tab to the next day once today's lessons are all over - runs once per app session.
   useEffect(() => {
     if (!dbReady || !hasClass) return;
@@ -104,7 +115,7 @@ function RootNavigation() {
 
   if (!dbReady) {
     return (
-      <Animated.View entering={FadeIn.duration(200)} style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
+      <Animated.View entering={FadeIn.duration(motion.base)} style={[styles.loadingScreen, { backgroundColor: palette.background }]}>
         <Image source={require("../assets/android-icon-foreground.png")} style={styles.loadingLogo} resizeMode="contain" />
         <Text style={[styles.loadingAppName, { color: palette.accent }]}>FENYRA</Text>
         <Text style={[styles.loadingAppSub, { color: palette.textSecondary }]}>Plan</Text>
@@ -117,7 +128,7 @@ function RootNavigation() {
     return (
       <>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <Animated.View style={styles.flexFill} entering={FadeIn.duration(250)}>
+        <Animated.View style={styles.flexFill} entering={FadeIn.duration(motion.base)}>
           <LoginScreen />
         </Animated.View>
       </>
@@ -128,7 +139,7 @@ function RootNavigation() {
     return (
       <>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <Animated.View style={styles.flexFill} entering={FadeIn.duration(250)}>
+        <Animated.View style={styles.flexFill} entering={FadeIn.duration(motion.base)}>
           <ClassSelectionScreen />
         </Animated.View>
       </>

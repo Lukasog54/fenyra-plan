@@ -241,7 +241,14 @@ export async function runDataSourceAudit(
         key: "synchronisierung",
         label: "Synchronisierung",
         status: persistedSyncMeta.lastSyncStatus === "success" ? "PASS" : persistedSyncMeta.lastSyncStatus === "error" ? "FAIL" : "UNKNOWN",
-        detail: persistedSyncMeta.lastError ?? undefined,
+        // Prefixed with the error's pipeline stage (NETWORK_ERROR/AUTH_ERROR/SOURCE_ERROR/
+        // DATABASE_ERROR/SYNC_ERROR) when known, so it's clear at a glance whether a failed sync
+        // is a Stundenplan24 problem or a Fenyra-side one - see src/data/errors/ClassifiedError.ts.
+        detail: persistedSyncMeta.lastError
+          ? persistedSyncMeta.lastErrorType
+            ? `[${persistedSyncMeta.lastErrorType}] ${persistedSyncMeta.lastError}`
+            : persistedSyncMeta.lastError
+          : undefined,
       }
     : { key: "synchronisierung", label: "Synchronisierung", status: "UNKNOWN", detail: "Noch nie synchronisiert." };
 

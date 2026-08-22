@@ -11,11 +11,15 @@
         "buildType": "apk"
       }
     },
+    "ios": {
+      "distribution": "store"
+    },
     "production": {
       "autoIncrement": true
     }
   },
   "submit": {
-    "production": {}
+    "production": {},
+    "ios": {}
   }
 }

@@ -12,7 +12,9 @@
       "android"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "de.fenyra.plan",
+      "buildNumber": "1"
     },
     "android": {
       "package": "de.fenyra.plan",

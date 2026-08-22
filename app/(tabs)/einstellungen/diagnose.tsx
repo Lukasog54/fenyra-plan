@@ -1,5 +1,6 @@
-import { View, ScrollView, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, ScrollView, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import * as Clipboard from "expo-clipboard";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { useSyncMeta } from "../../../src/query/hooks/useSync";
 import { useOfflineStats } from "../../../src/query/hooks/useOfflineStats";
@@ -7,6 +8,7 @@ import { getLessonsForRange } from "../../../src/data/database/repositories/less
 import { resolveAdapter } from "../../../src/data/adapters/registry";
 import { runDataSourceAudit, type DiagnosticEntry, type DiagnosticStatus } from "../../../src/data/diagnostics/DataSourceDiagnostics";
 import { checkDataIntegrity, type DataIntegrityReport } from "../../../src/data/diagnostics/DataIntegrityCheck";
+import { buildHealthCheckReport } from "../../../src/data/diagnostics/healthCheckReport";
 import { defaultSyncRange } from "../../../src/utils/date";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
@@ -111,6 +113,13 @@ export default function DiagnoseScreen() {
   });
   const integrity: DataIntegrityReport | undefined = integrityMutation.data;
 
+  async function copyHealthCheck() {
+    if (!audit) return;
+    const report = buildHealthCheckReport(audit, integrity ?? null);
+    await Clipboard.setStringAsync(report);
+    Alert.alert("Kopiert", "Der IT-Health-Check wurde als Text in die Zwischenablage kopiert - kann direkt an die Schul-IT weitergegeben werden.");
+  }
+
   return (
     <ScrollView style={{ backgroundColor: palette.background }} contentContainerStyle={styles.container}>
       <DiagnosticRow label="Schulnummer" value={schoolConfig.stundenplan24?.schoolId || "—"} />
@@ -139,6 +148,10 @@ export default function DiagnoseScreen() {
             </View>
           ))}
         </Card>
+      ) : null}
+
+      {audit ? (
+        <Button label="IT-Health-Check kopieren" variant="secondary" onPress={copyHealthCheck} style={{ marginTop: spacing.sm }} />
       ) : null}
 
       <Text style={[styles.sectionHeading, { color: palette.textSecondary }]}>DATENQUELLEN-AUDIT</Text>

@@ -8,7 +8,7 @@ import { useTheme } from "../../../src/theme/ThemeProvider";
 import { Card } from "../../../src/components/common/Card";
 import { Button } from "../../../src/components/common/Button";
 import { ToggleRow } from "../../../src/components/common/ToggleRow";
-import { radius, spacing, typography } from "../../../src/theme/tokens";
+import { motion, radius, spacing, typography } from "../../../src/theme/tokens";
 
 const INTERVAL_OPTIONS = [5, 10, 15, 30, 60, 180, 360];
 
@@ -44,7 +44,7 @@ function ProgressChecklist({ progress }: { progress: SyncPhase | null }) {
       {visibleSteps.map((step, index) => {
         const isDone = index < currentIndex || progress === "done";
         return (
-          <Animated.View key={step.key} entering={FadeIn.duration(150)} style={styles.progressRow}>
+          <Animated.View key={step.key} entering={FadeIn.duration(motion.fast)} style={styles.progressRow}>
             {isDone ? (
               <Ionicons name="checkmark-circle" size={16} color={palette.success} />
             ) : (

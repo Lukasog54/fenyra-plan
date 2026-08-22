@@ -1,5 +1,13 @@
 # Fenyra Plan — Datenquellen-Audit & Reparaturbericht
 
+**VERALTET (Stand 2026-08-19, vor echtem Schulzugang).** Dieser Bericht ging noch davon aus, dass keine echten
+Stundenplan24-Zugangsdaten vorliegen und `fetchLessons` gegen eine echte Schule nicht implementiert sei - beides
+stimmt seit 2026-08-20 nicht mehr (echter Live-Test gegen eine reale Schule erfolgt, siehe
+`docs/stundenplan24-investigation.md` und `docs/PRIORITAET_1_WICHTIGSTE_SACHEN.md` für den aktuellen Stand). Nur
+zur historischen Nachvollziehbarkeit belassen, nicht mehr als aktuelle Wahrheit verwenden.
+
+---
+
 Stand: 2026-08-19. Erzeugt durch `src/data/diagnostics/DataSourceDiagnostics.ts` (`runDataSourceAudit`), getestet in
 `__tests__/data/diagnostics/DataSourceDiagnostics.test.ts` (25/25 Tests grün, `tsc` sauber, Bundle-Export erfolgreich).
 

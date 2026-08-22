@@ -11,6 +11,20 @@ import { parseVpMobilXml, parseVplanXml } from "./parser";
 import { validateMobil, validateVplan } from "./validator";
 import { lessonsFromMobil, applyVplanNotes } from "./mapper";
 import { addDays, todayIsoDate } from "../../../utils/date";
+import { ClassifiedError } from "../../errors/ClassifiedError";
+
+/** Distinguishes why a day's fetch failed, based only on signals Fenyra generated itself
+ * (the "HTTP nnn" prefix below), never on guessing at the server's own error text. */
+type DayFailureKind = "network" | "auth" | "other";
+
+function classifyDayFailure(error: unknown): DayFailureKind {
+  if (error instanceof Error) {
+    if (/^HTTP 401\b|^HTTP 403\b/.test(error.message)) return "auth";
+    if (/^HTTP \d/.test(error.message)) return "other";
+  }
+  // fetch() itself threw (DNS/connectivity failure) rather than returning an HTTP-status Error.
+  return "network";
+}
 
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -90,7 +104,8 @@ export class Stundenplan24Adapter implements SchoolDataSource {
   private async fetchDayLessons(
     date: string,
     className: string | undefined,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    onFailure?: (kind: DayFailureKind) => void
   ): Promise<{
     lessons: Lesson[];
     rawPayloads: Array<{ kind: string; payload: string }>;
@@ -109,10 +124,13 @@ export class Stundenplan24Adapter implements SchoolDataSource {
       const mobilDoc = validateMobil(parseVpMobilXml(mobilXml));
       lessons = lessonsFromMobil(mobilDoc, this.config.id, date);
       sourceGeneratedAt = mobilDoc.VpMobil.Kopf.zeitstempel || undefined;
-    } catch {
+    } catch (error) {
       // No plan published for this date (weekend/holiday/out of range), or the response didn't match
       // the expected shape (e.g. a maintenance page) - skip this one day rather than aborting the
-      // whole multi-day sync over a single bad response.
+      // whole multi-day sync over a single bad response. Still record why, so that if EVERY day in
+      // the range fails this way, fetchLessons() can throw a correctly classified error instead of
+      // a generic one.
+      onFailure?.(classifyDayFailure(error));
       return null;
     }
 
@@ -134,7 +152,8 @@ export class Stundenplan24Adapter implements SchoolDataSource {
 
   async fetchLessons(params: FetchLessonsParams): Promise<FetchLessonsResult> {
     if (!this.isConfigured()) {
-      throw new Error(
+      throw new ClassifiedError(
+        "SOURCE_ERROR",
         "Stundenplan24-Datenquelle ist nicht konfiguriert. Bitte Schulnummer und Server-URL in den Einstellungen hinterlegen."
       );
     }
@@ -144,6 +163,7 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     const rawPayloads: Array<{ kind: string; payload: string }> = [];
     const datesFetched: string[] = [];
     let anyDaySucceeded = false;
+    let lastFailureKind: DayFailureKind = "other";
     let schoolName: string | undefined;
     let sourceGeneratedAt: string | undefined;
     let sourceMetaIsFromToday = false;
@@ -151,7 +171,9 @@ export class Stundenplan24Adapter implements SchoolDataSource {
 
     let cursor = params.from;
     while (cursor <= params.to) {
-      const day = await this.fetchDayLessons(cursor, params.className, headers);
+      const day = await this.fetchDayLessons(cursor, params.className, headers, (kind) => {
+        lastFailureKind = kind;
+      });
       if (day) {
         anyDaySucceeded = true;
         datesFetched.push(cursor);
@@ -176,7 +198,12 @@ export class Stundenplan24Adapter implements SchoolDataSource {
     // SyncService would happily wipe already-cached lessons over what's actually a wrong
     // Schulnummer, revoked credentials, or an outage.
     if (!anyDaySucceeded) {
-      throw new Error(
+      // TS narrows `lastFailureKind` to its initializer literal across the closure boundary above,
+      // so it needs an explicit widen back to the declared union here - it genuinely can be any of
+      // the three values by this point, set from inside fetchDayLessons()'s onFailure callback.
+      const failureKind = lastFailureKind as DayFailureKind;
+      throw new ClassifiedError(
+        failureKind === "network" ? "NETWORK_ERROR" : failureKind === "auth" ? "AUTH_ERROR" : "SOURCE_ERROR",
         "Für den gesamten abgefragten Zeitraum konnte kein Stundenplan abgerufen werden. Bitte Schulnummer, Zugangsdaten und Internetverbindung prüfen."
       );
     }

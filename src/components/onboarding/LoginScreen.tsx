@@ -6,6 +6,7 @@ import { TextField } from "../common/TextField";
 import { Button } from "../common/Button";
 import { savePassword, credentialKeyFor } from "../../data/security/secureCredentials";
 import { resolveAdapter } from "../../data/adapters/registry";
+import { PUBLIC_DEMO_SCHOOL_ID } from "../../data/constants";
 import { spacing, typography, radius } from "../../theme/tokens";
 import type { ConnectionTestResult } from "../../data/models/SchoolDataSource";
 
@@ -25,7 +26,8 @@ export function LoginScreen() {
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  const canSubmit = schoolId.trim().length > 0 && username.trim().length > 0 && password.length > 0;
+  const isPublicDemoSchool = schoolId.trim() === PUBLIC_DEMO_SCHOOL_ID;
+  const canSubmit = schoolId.trim().length > 0 && username.trim().length > 0 && (password.length > 0 || isPublicDemoSchool);
 
   async function handleConnect() {
     if (!canSubmit || connecting) return;
@@ -33,8 +35,14 @@ export function LoginScreen() {
     setTestResult(null);
 
     const trimmedSchoolId = schoolId.trim();
-    await savePassword(schoolConfig.id, password);
-    const credentialRef = credentialKeyFor(schoolConfig.id);
+    // The public demo school needs no credentials at all (verified live - no Authorization header
+    // required) - only save/reference a password if one was actually entered, so no empty
+    // credential gets stored and the adapter sends no Auth header for it (see authHeader()).
+    let credentialRef: string | undefined;
+    if (password.length > 0) {
+      await savePassword(schoolConfig.id, password);
+      credentialRef = credentialKeyFor(schoolConfig.id);
+    }
 
     const candidateConfig = {
       ...schoolConfig,
@@ -99,7 +107,16 @@ export function LoginScreen() {
           style={styles.usernameInput}
         />
 
-        <TextField label="Passwort" value={password} onChangeText={setPassword} placeholder="Passwort" secureTextEntry autoCapitalize="none" autoCorrect={false} />
+        <TextField
+          label="Passwort"
+          value={password}
+          onChangeText={setPassword}
+          placeholder={isPublicDemoSchool ? "Nicht nötig (öffentliche Testschule)" : "Passwort"}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          hint={isPublicDemoSchool ? "Diese Schulnummer ist Stundenplan24's öffentliche Beispielschule - kein Passwort erforderlich." : undefined}
+        />
 
         <Button label="Verbinden" onPress={handleConnect} loading={connecting} disabled={!canSubmit} style={styles.connectButton} />
 

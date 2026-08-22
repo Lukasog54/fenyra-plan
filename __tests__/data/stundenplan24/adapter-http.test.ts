@@ -1,6 +1,7 @@
 import { Stundenplan24Adapter } from "../../../src/data/adapters/stundenplan24/adapter";
 import { savePassword } from "../../../src/data/security/secureCredentials";
 import type { DataSourceConfig } from "../../../src/data/models/SchoolDataSource";
+import { ClassifiedError } from "../../../src/data/errors/ClassifiedError";
 
 const UNCONFIGURED: DataSourceConfig = { id: "stundenplan24", displayName: "Stundenplan24", kind: "stundenplan24" };
 
@@ -110,6 +111,50 @@ describe("Stundenplan24Adapter.fetchLessons", () => {
     await expect(adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" })).rejects.toThrow(
       /kein Stundenplan abgerufen werden/
     );
+  });
+
+  it("classifies an all-days network failure as NETWORK_ERROR (fetch itself throws, not an HTTP-status response)", async () => {
+    (global as any).fetch = jest.fn().mockRejectedValue(new Error("Network request failed"));
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const error = await adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ClassifiedError);
+    expect((error as ClassifiedError).type).toBe("NETWORK_ERROR");
+  });
+
+  it("classifies an all-days HTTP 401 failure as AUTH_ERROR (server reachable, credentials rejected)", async () => {
+    mockFetchOnce(401);
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const error = await adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ClassifiedError);
+    expect((error as ClassifiedError).type).toBe("AUTH_ERROR");
+  });
+
+  // A wrong Schulnummer and a server outage (5xx) both surface as SOURCE_ERROR, not falsely as
+  // NETWORK_ERROR or AUTH_ERROR - genuinely indistinguishable from a plain HTTP-status response
+  // alone (see docs/stundenplan24-investigation.md), so this asserts the honest fallback rather
+  // than fabricating a distinction the source doesn't support.
+  it("classifies an all-days HTTP 404 (e.g. wrong Schulnummer) as SOURCE_ERROR", async () => {
+    mockFetchOnce(404, "<html>Stundenplan24 - Seite nicht gefunden</html>");
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const error = await adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ClassifiedError);
+    expect((error as ClassifiedError).type).toBe("SOURCE_ERROR");
+  });
+
+  it("classifies an all-days HTTP 500 (server outage) as SOURCE_ERROR, not NETWORK_ERROR or AUTH_ERROR", async () => {
+    mockFetchOnce(500);
+    const adapter = new Stundenplan24Adapter(CONFIGURED);
+
+    const error = await adapter.fetchLessons({ from: "2026-08-19", to: "2026-08-21" }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ClassifiedError);
+    expect((error as ClassifiedError).type).toBe("SOURCE_ERROR");
   });
 
   it("does not throw when only some days in the range have no published plan (normal weekend/holiday gaps)", async () => {

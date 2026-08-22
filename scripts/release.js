@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 /**
  * Full Fenyra Plan release pipeline - run with `npm run release`:
+ *   0. Runs `npm test` and `tsc --noEmit` - aborts before spending any EAS build
+ *      minutes if either fails.
+ *   0b. Asks for a short, plain-language "what got better" summary (no code
+ *      details) - refuses to release without one. Becomes the GitHub release
+ *      body, which the app's own "Über die App" update card shows as
+ *      "ÄNDERUNGEN" - every update tells the user what changed, in their words.
  *   1. Bumps the patch version in app.json + package.json and commits it.
  *   2. Builds the Android APK on EAS (waits for it to finish).
  *   3. Downloads the finished APK.
@@ -8,6 +14,10 @@
  *   5. Creates a GitHub Release for that tag with the APK attached (via the
  *      GitHub REST API directly, no `gh` CLI needed), so the app's own
  *      in-app update check (GITHUB_REPO in src/data/constants.ts) finds it.
+ *
+ * Usage:
+ *   npm run release                              (prompts for the "what improved" text)
+ *   npm run release -- "Schnelleres Update, weniger Abstürze"   (skips the prompt)
  *
  * One-time setup this script does NOT do for you (do these once, manually):
  *   - `eas login` (needs an Expo account with access to this project)
@@ -23,6 +33,7 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const readline = require("readline");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -55,6 +66,16 @@ function loadDotEnv() {
     const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
     if (!process.env[key]) process.env[key] = value;
   }
+}
+
+function ask(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
 }
 
 /** Parses "owner/repo" out of the git remote, so it never has to be duplicated here. */
@@ -147,6 +168,22 @@ async function main() {
   }
   const repo = getRepoFromGitRemote();
 
+  // 0. Gate: don't spend EAS build minutes on code that's already known to be broken.
+  console.log("Checks vor dem Release ...");
+  run(`npm test -- --silent`);
+  run(`npx tsc --noEmit`);
+
+  // 0b. Every release needs a short, human-readable "what got better" summary - no code/file
+  // references, just what changed for the person using the app. This becomes the GitHub release
+  // body, which the app's own update card (ueber-die-app.tsx, via UpdateCheck.ts's `changelog`)
+  // shows as "ÄNDERUNGEN" - so it's always there when someone gets the update, not optional.
+  const notesArg = process.argv.slice(2).join(" ").trim();
+  const releaseNotes = notesArg || (await ask("\nWas wurde in diesem Update verbessert? (kurz, ohne Code-Details, für Nutzer verständlich):\n> "));
+  if (!releaseNotes) {
+    console.error("\nKeine Verbesserungen angegeben - Release abgebrochen. Ohne diese Beschreibung wird kein Update veröffentlicht.");
+    process.exit(1);
+  }
+
   const appJsonPath = path.join(ROOT, "app.json");
   const packageJsonPath = path.join(ROOT, "package.json");
   const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
@@ -194,7 +231,7 @@ async function main() {
   const release = await githubApiRequest("POST", "api.github.com", `/repos/${repo}/releases`, token, {
     tag_name: tag,
     name: `Fenyra Plan ${tag}`,
-    generate_release_notes: true,
+    body: releaseNotes,
   });
   const uploadHost = "uploads.github.com";
   const uploadPath = `/repos/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(apkName)}`;

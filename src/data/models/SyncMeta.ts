@@ -1,3 +1,5 @@
+import type { SyncErrorType } from "../errors/ClassifiedError";
+
 export type SyncStatus = "success" | "error" | "never";
 
 export interface SyncMeta {
@@ -5,6 +7,9 @@ export interface SyncMeta {
   lastSyncedAt: string | null;
   lastSyncStatus: SyncStatus;
   lastError?: string | null;
+  /** Which pipeline stage `lastError` came from (NETWORK_ERROR/AUTH_ERROR/SOURCE_ERROR/DATABASE_ERROR/
+   * SYNC_ERROR) - null when there's no error, or for errors saved before this field existed. */
+  lastErrorType?: SyncErrorType | null;
   syncIntervalMinutes: number;
   /** From the source's own Vertretungsplan-Kopf (<schulname>) - not user-entered, not invented. */
   schoolName?: string | null;

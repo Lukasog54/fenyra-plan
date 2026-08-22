@@ -33,6 +33,9 @@ export default function HeuteScreen() {
   const upcomingGroups = groupParallelLessons(upcoming);
   const nextGroup = upcomingGroups[0];
   const restOfDayGroups = upcomingGroups.slice(1);
+  // Distinguishes "this lesson is happening right now" from merely "next up" - only meaningful
+  // when the source actually provides a startTime, which it always does (only endTime can be missing).
+  const isCurrentlyHappening = nextGroup?.some((l) => l.startTime && l.startTime <= now) ?? false;
 
   return (
     <ScrollView
@@ -48,7 +51,7 @@ export default function HeuteScreen() {
 
       {!isLoading && nextGroup ? (
         <View style={styles.cardWrapper}>
-          <NextLessonCard lessons={nextGroup} />
+          <NextLessonCard lessons={nextGroup} isCurrent={isCurrentlyHappening} />
         </View>
       ) : !isLoading ? (
         <Text style={[styles.emptyText, { color: palette.textSecondary }]}>

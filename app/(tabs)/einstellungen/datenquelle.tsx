@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
 import { resolveAdapter } from "../../../src/data/adapters/registry";
 import { useTheme } from "../../../src/theme/ThemeProvider";
@@ -9,6 +10,7 @@ import { TextField } from "../../../src/components/common/TextField";
 import { Button } from "../../../src/components/common/Button";
 import type { ConnectionTestResult } from "../../../src/data/models/SchoolDataSource";
 import { savePassword, deletePassword, credentialKeyFor } from "../../../src/data/security/secureCredentials";
+import { clearOfflineData } from "../../../src/data/database/db";
 import { radius, spacing, typography } from "../../../src/theme/tokens";
 
 const USER_TYPES: Array<{ id: string; label: string }> = [
@@ -20,6 +22,7 @@ export default function DatenquelleScreen() {
   const { palette } = useTheme();
   const schoolConfig = useSettingsStore((s) => s.schoolConfig);
   const updateSchoolConfig = useSettingsStore((s) => s.updateSchoolConfig);
+  const queryClient = useQueryClient();
 
   const [schoolId, setSchoolId] = useState(schoolConfig.stundenplan24?.schoolId ?? "");
   const [username, setUsername] = useState(schoolConfig.stundenplan24?.username ?? "");
@@ -40,8 +43,21 @@ export default function DatenquelleScreen() {
     updateSchoolConfig({ schoolId, username, credentialRef: credentialKeyFor(schoolConfig.id) });
   }
 
-  async function removeSavedPassword() {
+  function confirmRemoveSavedPassword() {
+    Alert.alert(
+      "Zugangsdaten entfernen?",
+      "Entfernt das gespeicherte Passwort und alle auf diesem Gerät zwischengespeicherten Stundenplan- und Vertretungsdaten dieser Schule. Sinnvoll z. B. bevor du das Gerät weitergibst - so sieht niemand sonst deine Daten.",
+      [
+        { text: "Abbrechen", style: "cancel" },
+        { text: "Entfernen", style: "destructive", onPress: removeSavedPasswordAndCachedData },
+      ]
+    );
+  }
+
+  async function removeSavedPasswordAndCachedData() {
     await deletePassword(schoolConfig.id);
+    await clearOfflineData();
+    await queryClient.invalidateQueries();
     setHasSavedPassword(false);
     updateSchoolConfig({ schoolId, username, credentialRef: undefined });
   }
@@ -121,7 +137,7 @@ export default function DatenquelleScreen() {
         <View style={styles.passwordLabelRow}>
           <Text style={[styles.fieldLabel, { color: palette.textSecondary, marginBottom: 0 }]}>PASSWORT</Text>
           {hasSavedPassword ? (
-            <Pressable onPress={removeSavedPassword}>
+            <Pressable onPress={confirmRemoveSavedPassword}>
               <Text style={[styles.removeLink, { color: palette.danger }]}>Entfernen</Text>
             </Pressable>
           ) : null}

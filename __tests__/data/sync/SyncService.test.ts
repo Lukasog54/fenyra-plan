@@ -3,6 +3,7 @@ import { sync } from "../../../src/data/sync/SyncService";
 import * as lessonRepository from "../../../src/data/database/repositories/lessonRepository";
 import * as syncMetaRepository from "../../../src/data/database/repositories/syncMetaRepository";
 import { useSettingsStore } from "../../../src/stores/useSettingsStore";
+import { ClassifiedError } from "../../../src/data/errors/ClassifiedError";
 
 jest.mock("../../../src/data/database/repositories/lessonRepository");
 jest.mock("../../../src/data/database/repositories/syncMetaRepository");
@@ -159,6 +160,44 @@ describe("SyncService.sync progress reporting", () => {
     await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" }, (phase) => phases.push(phase))).rejects.toThrow("kaputt");
 
     expect(phases).toEqual(["connecting", "fetching"]);
+  });
+});
+
+describe("SyncService.sync error classification", () => {
+  it("reclassifies a local-database failure as DATABASE_ERROR (not a Stundenplan24 problem)", async () => {
+    const sourceId = nextSourceId();
+    mockedLessonRepo.getLessonsForRange.mockRejectedValue(new Error("disk I/O error"));
+    const adapter = makeAdapter(sourceId, async () => ({
+      lessons: [],
+      syncMeta: { sourceId, lastSyncedAt: null, lastSyncStatus: "success", syncIntervalMinutes: 30 },
+      datesFetched: [],
+    }));
+
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" })).rejects.toThrow("disk I/O error");
+
+    expect(mockedSyncMetaRepo.saveSyncMeta).toHaveBeenLastCalledWith(expect.objectContaining({ lastErrorType: "DATABASE_ERROR" }));
+  });
+
+  it("keeps the adapter's own classification (e.g. NETWORK_ERROR) instead of overwriting it with DATABASE_ERROR", async () => {
+    const sourceId = nextSourceId();
+    const adapter = makeAdapter(sourceId, async () => {
+      throw new ClassifiedError("NETWORK_ERROR", "Verbindung fehlgeschlagen");
+    });
+
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" })).rejects.toThrow();
+
+    expect(mockedSyncMetaRepo.saveSyncMeta).toHaveBeenLastCalledWith(expect.objectContaining({ lastErrorType: "NETWORK_ERROR" }));
+  });
+
+  it("falls back to SYNC_ERROR for an unclassified error", async () => {
+    const sourceId = nextSourceId();
+    const adapter = makeAdapter(sourceId, async () => {
+      throw new Error("irgendwas Unerwartetes");
+    });
+
+    await expect(sync(adapter, { from: "2026-08-19", to: "2026-08-19" })).rejects.toThrow();
+
+    expect(mockedSyncMetaRepo.saveSyncMeta).toHaveBeenLastCalledWith(expect.objectContaining({ lastErrorType: "SYNC_ERROR" }));
   });
 });
 

@@ -7,6 +7,7 @@ import { getSyncMeta, saveSyncMeta } from "../database/repositories/syncMetaRepo
 import { saveChangeEvents } from "../database/repositories/changeEventRepository";
 import { detectChanges } from "./ChangeDetector";
 import { notifyNewChangeEvents, notifySyncError } from "../notifications/NotificationService";
+import { ClassifiedError, classifiedTypeOf } from "../errors/ClassifiedError";
 
 export interface SyncResult {
   events: SubstitutionChangeEvent[];
@@ -40,43 +41,62 @@ export function sync(adapter: SchoolDataSource, range: FetchLessonsParams, onPro
   return promise;
 }
 
+/** Runs a local-database step and, if it fails, reclassifies the failure as DATABASE_ERROR - unless
+ * it's already a ClassifiedError (e.g. one that bubbled up from elsewhere), which is left as-is. */
+async function asDatabaseStep<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof ClassifiedError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ClassifiedError("DATABASE_ERROR", message, { cause: error });
+  }
+}
+
 async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams, onProgress?: SyncProgressCallback): Promise<SyncResult> {
   const sourceId = adapter.config.id;
   const now = new Date().toISOString();
   onProgress?.("connecting");
-  const existingMeta = await getSyncMeta(sourceId);
+  const existingMeta = await asDatabaseStep(() => getSyncMeta(sourceId));
   const intervalMinutes = existingMeta?.syncIntervalMinutes ?? 30;
 
   try {
-    const previous = await getLessonsForRange(sourceId, range.from, range.to);
+    const previous = await asDatabaseStep(() => getLessonsForRange(sourceId, range.from, range.to));
     onProgress?.("fetching");
+    // Not wrapped in asDatabaseStep: failures here are already classified by the adapter itself
+    // (NETWORK_ERROR/AUTH_ERROR/SOURCE_ERROR) - reclassifying them as DATABASE_ERROR would hide
+    // a genuine Stundenplan24 problem behind the wrong category.
     const result = await adapter.fetchLessons(range);
 
     onProgress?.("saving");
-    for (const raw of result.rawPayloads ?? []) {
-      await saveRawSnapshot(sourceId, raw.kind, raw.payload, now);
-    }
+    const events = await asDatabaseStep(async () => {
+      for (const raw of result.rawPayloads ?? []) {
+        await saveRawSnapshot(sourceId, raw.kind, raw.payload, now);
+      }
 
-    const events = detectChanges(previous, result.lessons, now);
+      const detected = detectChanges(previous, result.lessons, now);
 
-    // Only the dates actually fetched this time get replaced - a day that failed to fetch (but
-    // wasn't part of a total-range failure, see the adapter's own all-days-failed guard) keeps
-    // whatever was already cached for it instead of being silently deleted.
-    await replaceLessonsForDates(sourceId, result.datesFetched ?? [], result.lessons, now);
-    await saveChangeEvents(events);
+      // Only the dates actually fetched this time get replaced - a day that failed to fetch (but
+      // wasn't part of a total-range failure, see the adapter's own all-days-failed guard) keeps
+      // whatever was already cached for it instead of being silently deleted.
+      await replaceLessonsForDates(sourceId, result.datesFetched ?? [], result.lessons, now);
+      await saveChangeEvents(detected);
+      return detected;
+    });
 
     const syncMeta: SyncMeta = {
       sourceId,
       lastSyncedAt: now,
       lastSyncStatus: "success",
       lastError: null,
+      lastErrorType: null,
       syncIntervalMinutes: intervalMinutes,
       // Fall back to the previously stored value so a sync that succeeds but happens not to
       // touch today's file (edge case) doesn't blank out an already-known school name/timestamp.
       schoolName: result.syncMeta.schoolName ?? existingMeta?.schoolName ?? null,
       sourceGeneratedAt: result.syncMeta.sourceGeneratedAt ?? existingMeta?.sourceGeneratedAt ?? null,
     };
-    await saveSyncMeta(syncMeta);
+    await asDatabaseStep(() => saveSyncMeta(syncMeta));
     onProgress?.("done");
 
     // Never notify from the very first sync ever: it diffs against an empty `previous` set, so
@@ -90,11 +110,13 @@ async function performSync(adapter: SchoolDataSource, range: FetchLessonsParams,
     return { events, syncMeta };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const errorType = classifiedTypeOf(error);
     const syncMeta: SyncMeta = {
       sourceId,
       lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
       lastSyncStatus: "error",
       lastError: message,
+      lastErrorType: errorType,
       syncIntervalMinutes: intervalMinutes,
       schoolName: existingMeta?.schoolName ?? null,
       sourceGeneratedAt: existingMeta?.sourceGeneratedAt ?? null,

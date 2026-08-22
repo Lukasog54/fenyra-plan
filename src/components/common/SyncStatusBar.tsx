@@ -4,7 +4,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSync, useSyncMeta } from "../../query/hooks/useSync";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { useTheme } from "../../theme/ThemeProvider";
-import { spacing, typography } from "../../theme/tokens";
+import { usePressScale } from "../../hooks/usePressScale";
+import { lightImpact } from "../../utils/haptics";
+import { motion, spacing, typography } from "../../theme/tokens";
 
 function formatTime(iso: string | null | undefined): string {
   if (!iso) return "noch nie";
@@ -16,6 +18,7 @@ export function SyncStatusBar() {
   const { data: meta } = useSyncMeta();
   const syncMutation = useSync();
   const isOnline = useNetworkStatus();
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressScale();
 
   const isSyncError = meta?.lastSyncStatus === "error";
   const isSyncing = syncMutation.isPending;
@@ -34,26 +37,36 @@ export function SyncStatusBar() {
         : `Aktualisiert ${formatTime(meta?.lastSyncedAt)}`;
 
   return (
-    <Pressable
-      onPress={() => syncMutation.mutate()}
-      disabled={isSyncing}
-      style={styles.container}
-      accessibilityRole="button"
-      accessibilityLabel="Jetzt synchronisieren"
-    >
-      <Animated.View key={statusText} entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={styles.statusInner}>
-        {isSyncing ? (
-          <ActivityIndicator size="small" color={palette.accent} />
-        ) : (
-          <Ionicons
-            name={isOffline ? "cloud-offline-outline" : isSyncError ? "alert-circle" : "checkmark-circle"}
-            size={14}
-            color={statusColor}
-          />
-        )}
-        <Text style={[styles.label, { color: statusColor }]}>{statusText}</Text>
-      </Animated.View>
-    </Pressable>
+    <Animated.View style={pressStyle}>
+      <Pressable
+        onPress={() => {
+          if (isOffline || isSyncError) lightImpact();
+          syncMutation.mutate();
+        }}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={isSyncing}
+        style={styles.container}
+        accessibilityRole="button"
+        accessibilityLabel="Jetzt synchronisieren"
+      >
+        <Animated.View key={statusText} entering={FadeIn.duration(motion.fast)} exiting={FadeOut.duration(motion.fast)} style={styles.statusInner}>
+          {isSyncing ? (
+            <ActivityIndicator size="small" color={palette.accent} />
+          ) : (
+            <Ionicons
+              name={isOffline ? "cloud-offline-outline" : isSyncError ? "alert-circle" : "checkmark-circle"}
+              size={14}
+              color={statusColor}
+            />
+          )}
+          <Text style={[styles.label, { color: statusColor }]}>{statusText}</Text>
+          {!isSyncing && (isOffline || isSyncError) ? (
+            <Text style={[styles.retryLabel, { color: palette.accent }]}>Erneut versuchen</Text>
+          ) : null}
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -73,5 +86,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: typography.caption.fontSize,
     fontWeight: "600",
+  },
+  retryLabel: {
+    fontSize: typography.caption.fontSize,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+    marginLeft: spacing.xs,
   },
 });

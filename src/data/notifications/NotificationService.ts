@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants, { AppOwnership } from "expo-constants";
 import type { SubstitutionChangeEvent } from "../models/SubstitutionChangeEvent";
 import type { NotificationCategory } from "./types";
 import { markEventsNotified } from "../database/repositories/changeEventRepository";
@@ -7,18 +8,27 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 type NotificationsModule = typeof import("expo-notifications");
 
 /**
- * expo-notifications throws just from being loaded (not even called) when running under Expo Go
- * on Android - remote/push functionality was removed from Expo Go in SDK 53, and the package
- * registers a push-token listener as a module-level side effect. A static top-level `import`
- * would crash the whole app in Expo Go before any of our own code runs, so this module is loaded
- * lazily via require() inside a try/catch instead - real device/EAS builds load it fine, Expo Go
- * (or any other environment where it fails to load) falls back to "notifications unavailable"
- * rather than crashing.
+ * expo-notifications is broken under Expo Go on Android (remote/push functionality was removed
+ * from Expo Go in SDK 53) - not just a clean thrown error either: the module schedules an async
+ * push-token registration as a side effect of being required, which then fails *asynchronously*
+ * and surfaces as an unhandled/logged error no synchronous try/catch around `require()` can catch
+ * (confirmed live - the try/catch below did NOT stop the red-box error once something actually
+ * called into notification code on every app start, e.g. registering the tap listener).
+ * `Constants.appOwnership === "expo"` means "actually running inside the Expo Go client app"
+ * (unlike `executionEnvironment === "storeClient"`, which also covers dev-client builds where
+ * expo-notifications works fine) - checked BEFORE ever touching the module, so it's never
+ * required at all in Expo Go and the broken async side effect never gets a chance to run.
  */
+const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
+
 let cachedModule: NotificationsModule | null | undefined;
 
 function loadNotifications(): NotificationsModule | null {
   if (cachedModule !== undefined) return cachedModule;
+  if (isExpoGo) {
+    cachedModule = null;
+    return cachedModule;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod: NotificationsModule = require("expo-notifications");
@@ -130,7 +140,10 @@ export async function notifyNewChangeEvents(events: SubstitutionChangeEvent[]): 
       // deliberately-not-notified room/teacher/subject event for the same lesson) - the title
       // already names the class and change kind, so the body just points at the app for details.
       await Notifications.scheduleNotificationAsync({
-        content: { title: titleForEvent(event), body: "In Fenyra Plan ansehen" },
+        // `date` lets a tap on this notification jump straight to the affected day in the Plan
+        // tab (see addNotificationTapListener below) instead of just opening to whatever screen
+        // was last open.
+        content: { title: titleForEvent(event), body: "In Fenyra Plan ansehen", data: { date: event.date } },
         trigger: null,
       });
     }
@@ -138,6 +151,32 @@ export async function notifyNewChangeEvents(events: SubstitutionChangeEvent[]): 
   } catch {
     // A notification failure must never break the sync it's reporting on.
   }
+}
+
+/**
+ * Registers a listener for notification taps and calls `onDateTap` with the affected day (from
+ * the `data.date` set in notifyNewChangeEvents above) so the caller can navigate straight to it.
+ * No-ops (returns a harmless unsubscribe) when notifications aren't available on this runtime.
+ * Also checks whether the app was COLD-STARTED by tapping a notification (not just resumed from
+ * background), since `addNotificationResponseReceivedListener` alone misses that case.
+ */
+export function addNotificationTapListener(onDateTap: (date: string) => void): () => void {
+  const Notifications = loadNotifications();
+  if (!Notifications) return () => {};
+
+  function handleResponse(response: { notification: { request: { content: { data?: Record<string, unknown> } } } }): void {
+    const date = response.notification.request.content.data?.date;
+    if (typeof date === "string") onDateTap(date);
+  }
+
+  Notifications.getLastNotificationResponseAsync()
+    .then((response) => {
+      if (response) handleResponse(response);
+    })
+    .catch(() => {});
+
+  const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+  return () => subscription.remove();
 }
 
 export async function notifySyncError(message: string): Promise<void> {

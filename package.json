@@ -41,6 +41,7 @@
     "better-sqlite3": "^13.0.3",
     "jest": "^29.7.0",
     "jest-expo": "^57.0.4",
+    "test-renderer": "^1.2.0",
     "ts-jest": "^29.4.12",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3"
@@ -52,9 +53,11 @@
     "web": "expo start --web",
     "test": "jest",
     "build:android": "eas build --platform android --profile release --non-interactive",
+    "build:ios": "eas build --platform ios --profile ios --non-interactive",
     "push": "git push && git push --tags",
     "update-github": "node scripts/update-github.js",
     "release": "node scripts/release.js",
+    "release:ios": "node scripts/release-ios.js",
     "inspect-data": "tsx scripts/inspect-source-data.ts"
   },
   "private": true

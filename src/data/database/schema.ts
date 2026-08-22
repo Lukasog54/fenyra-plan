@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS lessons (
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS sync_meta (
   last_synced_at TEXT,
   last_sync_status TEXT NOT NULL DEFAULT 'never',
   last_error TEXT,
+  last_error_type TEXT,
   sync_interval_minutes INTEGER NOT NULL DEFAULT 30,
   school_name TEXT,
   source_generated_at TEXT
@@ -76,4 +77,11 @@ ALTER TABLE sync_meta ADD COLUMN source_generated_at TEXT;
  * `acknowledged` (reserved for a possible future in-app "mark as read", never written to yet). */
 export const MIGRATE_V2_TO_V3_SQL = `
 ALTER TABLE change_events ADD COLUMN notified INTEGER NOT NULL DEFAULT 0;
+`;
+
+/** v3 -> v4: adds a coded error type (NETWORK_ERROR/AUTH_ERROR/SOURCE_ERROR/DATABASE_ERROR/SYNC_ERROR)
+ * alongside the existing free-text last_error, so diagnostics can show which pipeline stage a sync
+ * failure actually came from instead of only a message string. */
+export const MIGRATE_V3_TO_V4_SQL = `
+ALTER TABLE sync_meta ADD COLUMN last_error_type TEXT;
 `;

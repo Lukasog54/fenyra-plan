@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Lesson } from "../../data/models/Lesson";
 import { StatusBadge } from "../common/StatusBadge";
+import { PulsingDot } from "../common/PulsingDot";
 import { useTheme } from "../../theme/ThemeProvider";
 import { describeLessonChanges } from "../../utils/lessonDiff";
 import { nowHHmm, todayIsoDate } from "../../utils/date";
@@ -49,7 +50,7 @@ function LessonBlock({ lesson, isParallel }: { lesson: Lesson; isParallel: boole
         </View>
         {isNow ? (
           <View style={styles.nowRow}>
-            <View style={[styles.nowDot, { backgroundColor: palette.accent }]} />
+            <PulsingDot color={palette.accent} size={6} />
             <Text style={[styles.nowLabel, { color: palette.accent }]}>JETZT</Text>
           </View>
         ) : null}
@@ -203,11 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  nowDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
   nowLabel: {
     fontSize: 10,
