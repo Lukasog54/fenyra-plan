@@ -1,0 +1,620 @@
+/* Portiert aus mobile/src/theme/colors.ts + tokens.ts als CSS-Custom-Properties, damit die Website
+   optisch zur App passt. Hell ist Default, Dunkel folgt prefers-color-scheme (kein AMOLED-Modus im
+   Web - der war ursprünglich nur für OLED-Handydisplays gedacht). */
+:root {
+  --color-background: #f4f8fb;
+  --color-surface: #ffffff;
+  --color-card: #ffffff;
+  --color-elevated-surface: #edf3f7;
+  --color-border: #dce4ec;
+  --color-text: #0b1220;
+  --color-text-secondary: #536274;
+  --color-muted: #8b96a5;
+  --color-accent: #0bc3b0;
+  --color-accent-text: #ffffff;
+  --color-accent-secondary: #0ea0c2;
+  --color-violet: #7c5cff;
+  --color-success: #1c9a6c;
+  --color-warning: #b8720a;
+  --color-danger: #d6483f;
+  --color-glow: rgba(11, 195, 176, 0.28);
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #070b14;
+    --color-surface: #0d1320;
+    --color-card: #111927;
+    --color-elevated-surface: #151f30;
+    --color-border: #1c2536;
+    --color-text: #f4fbff;
+    --color-text-secondary: #9aaabd;
+    --color-muted: #657286;
+    --color-accent: #20e6d2;
+    --color-accent-text: #04121a;
+    --color-accent-secondary: #28c7e8;
+    --color-violet: #7c5cff;
+    --color-success: #2fd988;
+    --color-warning: #f2b84b;
+    --color-danger: #ff6b6b;
+    --color-glow: rgba(32, 230, 210, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/* ===== App-Shell: feste Sidebar statt mobiler Top-Tab-Bar - klassisches Web-Dashboard-Layout,
+   das den vollen Viewport nutzt statt einer schmalen, zentrierten Handy-Spalte. ===== */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: stretch;
+}
+
+.sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-xl) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  color: var(--color-accent);
+  font-weight: 800;
+  letter-spacing: 3px;
+  font-size: 20px;
+}
+
+.sidebar-brand-sub {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  letter-spacing: 2px;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-xxl);
+}
+
+.sidebar-link {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sidebar-link:hover {
+  background: var(--color-elevated-surface);
+  color: var(--color-text);
+}
+
+.sidebar-link.is-active {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sidebar-class {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.sidebar-class strong {
+  color: var(--color-text);
+}
+
+.logout-button {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.logout-button:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: var(--space-xxl) 48px;
+  max-width: 1180px;
+  /* Zentriert die Spalte im verbleibenden Platz neben der Sidebar, statt sie linksbuendig zu lassen -
+     auf breiten Monitoren sonst ein grosser toter Bereich rechts, siehe Screenshot-Feedback. */
+  margin: 0 auto;
+}
+
+/* ===== Mobile-Navigation: eigenstaendige Komponenten (nicht nur eine umgeflossene Sidebar), damit
+   das Handy-Layout sich wie die native App anfuehlt - obere Leiste mit Branding/Abmelden, untere
+   Tab-Leiste mit Icons (daumenerreichbar), statt einer gequetschten Desktop-Sidebar. Per Default
+   versteckt, nur < 860px sichtbar (siehe unten) - Desktop bekommt stattdessen die Sidebar. ===== */
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mobile-topbar-brand {
+  color: var(--color-accent);
+  font-weight: 800;
+  letter-spacing: 2px;
+  font-size: 15px;
+}
+
+.mobile-tabbar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-tabbar-inner {
+  display: flex;
+  justify-content: space-around;
+  padding: 6px var(--space-sm);
+}
+
+.mobile-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 20px;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mobile-tab.is-active {
+  color: var(--color-accent);
+}
+
+/* ===== Breakpoint: alles Web-typische (Sidebar, Hover-Tabelle) wird ab hier durch das
+   eigenstaendige Handy-Layout ersetzt. ===== */
+@media (max-width: 860px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    display: none;
+  }
+  .mobile-topbar {
+    display: flex;
+  }
+  .mobile-tabbar {
+    display: block;
+  }
+  .main-content {
+    padding: var(--space-lg);
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    max-width: none;
+  }
+}
+
+/* ===== Desktop/Mobile-Umschaltung: LessonsView (siehe components/LessonsView.tsx) rendert beide
+   Varianten gleichzeitig, CSS entscheidet ohne JS/Hydration-Risiko, welche sichtbar ist - derselbe
+   Breakpoint wie die Nav-Umschaltung oben, damit Layout und Inhalt zusammen "kippen". ===== */
+.desktop-only {
+  display: block;
+}
+.mobile-only {
+  display: none;
+}
+@media (max-width: 860px) {
+  .desktop-only {
+    display: none;
+  }
+  .mobile-only {
+    display: block;
+  }
+}
+
+/* ===== Lessons-Tabelle (Desktop): echte <table> mit Hover-Zeilen - eine Web-only-Interaktion, die
+   auf dem Handy ohnehin keinen Sinn ergibt. Fuer Mobile gibt es stattdessen LessonCard (echte
+   eigene Karten-Ansicht, keine zusammengequetschte Tabelle). ===== */
+.lessons-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lessons-table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  font-weight: 700;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lessons-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.lessons-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.lessons-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lessons-table tbody tr:hover {
+  background: var(--color-elevated-surface);
+}
+
+.lessons-table tr.is-current td {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.lessons-table tr.is-current:hover td {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+/* ===== Lesson-Karten (Mobile): eigene Ansicht statt einer zusammengequetschten Tabelle - liest sich
+   wie die Listen in der nativen App (Stunde/Zeit links, Fach/Lehrer/Raum gestapelt, Badge rechts). ===== */
+.lesson-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lesson-card:last-child {
+  border-bottom: none;
+}
+
+.lesson-card.is-current {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  margin: 0 calc(-1 * var(--space-lg));
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+  border-radius: var(--radius-md);
+}
+
+/* ===== Login: Split-Hero-Layout statt zentrierter Handy-Karte. ===== */
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+}
+
+.login-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px;
+  background: linear-gradient(165deg, var(--color-background) 0%, var(--color-elevated-surface) 100%);
+}
+
+.login-hero::before {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  right: -180px;
+  border-radius: 50%;
+  background: var(--color-glow);
+  filter: blur(90px);
+}
+
+.login-hero-inner {
+  position: relative;
+  max-width: 440px;
+}
+
+.login-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+}
+
+@media (max-width: 900px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+  }
+  .login-hero {
+    display: none;
+  }
+  .login-form-panel {
+    border-left: none;
+  }
+}
+
+/* ===== Wochenplan (Desktop): echtes Stundenraster - Wochentage als Spalten, Stunden als Zeilen. ===== */
+.week-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.week-grid th,
+.week-grid td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-sm);
+  vertical-align: top;
+}
+
+.week-grid thead th {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  padding: var(--space-sm) var(--space-xs);
+  background: var(--color-elevated-surface);
+}
+
+.week-grid thead th.is-today {
+  color: var(--color-accent);
+}
+
+.week-grid-daynum {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-top: 2px;
+}
+
+.week-grid thead th.is-today .week-grid-daynum {
+  color: var(--color-accent);
+}
+
+.week-grid-period-col {
+  width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-muted);
+  background: var(--color-elevated-surface);
+}
+
+.week-grid td.is-today {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.week-cell-lesson {
+  border-left: 3px solid var(--color-border);
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--color-elevated-surface);
+  margin-bottom: 4px;
+}
+
+.week-cell-lesson:last-child {
+  margin-bottom: 0;
+}
+
+.week-cell-subject {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.3;
+}
+
+.week-cell-room {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* ===== App-getreue Mobile-Komponenten: PulsingDot, TimelineLessonRow, SubstitutionListItem -
+   1:1-Pendants zu den nativen App-Komponenten (siehe deren Kommentare), damit die Handy-Website
+   optisch nicht von der App zu unterscheiden ist. ===== */
+@keyframes pulse-opacity {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.pulsing-dot {
+  display: inline-block;
+  animation: pulse-opacity 1.4s ease-in-out infinite;
+}
+
+.timeline-content {
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+
+.timeline-content.is-now {
+  border-width: 1.5px;
+  box-shadow: 0 0 0 1px var(--color-glow);
+}
+
+.timeline-period-badge {
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  background: var(--color-elevated-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ===== Wochenplan (Mobile): kompaktes Raster wie WeekTimeline.tsx in der App - kein Listen-Stack,
+   Zellen sind antippbar und springen in die Tagesansicht (siehe components/WeekGridCompact.tsx). ===== */
+.week-compact {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.week-compact th {
+  text-align: center;
+  padding: 4px 2px var(--space-sm);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.week-compact th.is-today {
+  color: var(--color-accent);
+}
+
+.week-compact-daynum {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 1px;
+}
+
+.week-compact th.is-today .week-compact-daynum {
+  color: var(--color-accent);
+}
+
+.week-compact-period {
+  width: 20px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-muted);
+}
+
+.week-compact td {
+  padding: 1px;
+  vertical-align: middle;
+}
+
+.week-compact-cell {
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  background: var(--color-card);
+  border: none;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-compact-cell:active {
+  opacity: 0.7;
+}
+
+.week-compact-subject {
+  font-size: 10px;
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-compact-room {
+  font-size: 9px;
+  color: var(--color-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

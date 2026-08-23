@@ -1,0 +1,15 @@
+# Reverse-Proxy-Vorlage für Caddy (https://caddyserver.com/) - holt/erneuert das HTTPS-Zertifikat
+# automatisch (Let's Encrypt), keine manuelle certbot-Verwaltung nötig. Das ist wichtig hier, weil
+# echte Stundenplan24-Passwörter durch diese Verbindung gehen (siehe web/README.md).
+#
+# Setup:
+#   1. Diese Datei nach /etc/caddy/Caddyfile kopieren (oder dorthin symlinken).
+#   2. plan.deine-domain.de durch die echte Domain ersetzen, die auf den VPS zeigt (A/AAAA-Record).
+#   3. sudo systemctl reload caddy
+#
+# Voraussetzung: Port 80 und 443 müssen von außen erreichbar sein (Firewall), Caddy braucht das für
+# die automatische Zertifikatsausstellung.
+
+plan.deine-domain.de {
+	reverse_proxy localhost:3000
+}

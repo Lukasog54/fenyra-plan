@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+.env
+.env*.local
+next-env.d.ts
+*.tsbuildinfo
+
+# Vorsichtshalber: die Website ist zustandslos und legt normalerweise keine lokale DB mehr an, aber
+# frueher (vor der Stateless-Umstellung) schon - dieses Muster faengt einen versehentlichen Rest ab.
+data/

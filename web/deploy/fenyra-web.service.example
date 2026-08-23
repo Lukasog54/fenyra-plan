@@ -1,0 +1,30 @@
+# systemd-Unit fuer den Fenyra-Web-Prozess (App + Backend in einem, siehe web/README.md).
+# Haelt den Prozess am Laufen, startet ihn nach einem Server-Neustart automatisch neu.
+#
+# Setup:
+#   1. Auf dem VPS: cd /pfad/zu/fenyra-plan/web && npm ci && npm run build
+#   2. Diese Datei nach /etc/systemd/system/fenyra-web.service kopieren, WorkingDirectory und ggf.
+#      User unten anpassen.
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now fenyra-web
+#   5. Logs pruefen: journalctl -u fenyra-web -f
+#
+# Bei Code-Updates: git pull && npm ci && npm run build && sudo systemctl restart fenyra-web
+
+[Unit]
+Description=Fenyra Web (Website + Backend)
+After=network.target
+
+[Service]
+Type=simple
+# Anpassen: der Linux-User, unter dem der Prozess laufen soll (nicht root).
+User=fenyra
+WorkingDirectory=/pfad/zu/fenyra-plan/web
+# STUNDENPLAN24_BASE_URL ist optional (Default siehe .env.example) - nur setzen, falls abweichend.
+# Environment=STUNDENPLAN24_BASE_URL=https://www.stundenplan24.de
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
